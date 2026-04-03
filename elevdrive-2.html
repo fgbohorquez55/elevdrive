@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ElevDrive ⚡</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  :root{
+    --bg:#060a12;--card:#0d1824;--border:#1a2a3a;--green:#00ff9d;
+    --blue:#38c8f0;--yellow:#fbbf24;--red:#f87171;--text:#e2e8f0;--muted:#4a6a8a;
+  }
+  html,body{background:var(--bg);color:var(--text);font-family:'Barlow Condensed','Arial Narrow',sans-serif;
+    height:100%;overflow:hidden;}
+  #app{max-width:480px;margin:0 auto;height:100vh;display:flex;flex-direction:column;position:relative;}
+  .num{font-family:'Orbitron',monospace;}
+  /* Header */
+  #header{display:flex;justify-content:space-between;align-items:center;
+    padding:12px 16px 10px;border-bottom:1px solid #0f1e2e;flex-shrink:0;z-index:100;}
+  .logo{display:flex;align-items:center;gap:9px;}
+  .logo-icon{width:33px;height:33px;border-radius:8px;
+    background:linear-gradient(135deg,#00ff9d1a,#00ff9d33);border:1px solid #00ff9d44;
+    display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .logo-name{font-family:'Orbitron';font-size:13px;font-weight:700;color:var(--green);letter-spacing:2px;}
+  .logo-sub{font-size:10px;color:var(--muted);letter-spacing:1px;}
+  .back-btn{background:none;border:1px solid var(--border);border-radius:8px;
+    padding:6px 11px;color:var(--muted);font-size:11px;font-family:'Orbitron';cursor:pointer;display:none;}
+  /* Progress */
+  #progress-bar{height:3px;background:#0f1e2e;flex-shrink:0;display:none;}
+  #progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--blue));transition:width 0.3s;}
+  /* Content */
+  #content{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:11px;}
+  /* Cards */
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;}
+  .lbl{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;}
+  /* Search */
+  .search-row{display:flex;gap:8px;margin-top:8px;}
+  .search-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;
+    padding:11px 14px;color:var(--text);font-size:15px;font-family:'Barlow Condensed';outline:none;}
+  .search-input::placeholder{color:#2a4a6a;}
+  .search-btn{background:rgba(56,200,240,0.15);border:1px solid rgba(56,200,240,0.4);
+    border-radius:10px;padding:0 14px;color:var(--blue);cursor:pointer;font-size:18px;min-width:48px;
+    display:flex;align-items:center;justify-content:center;}
+  .search-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .suggestions{margin-top:8px;border-radius:10px;overflow:hidden;border:1px solid var(--border);}
+  .sug-item{padding:11px 14px;background:var(--card);cursor:pointer;
+    border-bottom:1px solid var(--border);font-size:14px;active-background:#1a2a3a;}
+  .sug-item:last-child{border-bottom:none;}
+  .sug-item:active{background:#1a2a3a;}
+  .selected-place{display:flex;justify-content:space-between;align-items:center;
+    padding:10px 14px;border-radius:10px;margin-top:8px;}
+  .selected-place .place-name{font-size:15px;font-weight:600;}
+  .selected-place .place-coords{font-size:10px;color:var(--muted);}
+  .clear-btn{background:none;border:1px solid var(--border);border-radius:6px;
+    padding:5px 10px;color:var(--muted);cursor:pointer;font-size:12px;}
+  /* Divider */
+  .divider{height:1px;background:var(--border);margin:12px 0;}
+  /* Slider */
+  input[type=range]{width:100%;accent-color:var(--green);}
+  /* Buttons */
+  .btn-primary{width:100%;padding:16px;border-radius:12px;font-family:'Orbitron';
+    font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all 0.3s;border:none;}
+  .btn-green{background:linear-gradient(135deg,rgba(0,255,157,0.12),rgba(0,255,157,0.2));
+    border:1px solid rgba(0,255,157,0.4)!important;color:var(--green);}
+  .btn-disabled{background:var(--card);border:1px solid var(--border)!important;
+    color:#2a4a6a;cursor:not-allowed;}
+  .btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .btn-half{padding:15px 10px;border-radius:11px;font-family:'Orbitron';
+    font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;border:none;}
+  .btn-half span{font-size:9px;opacity:0.65;font-weight:400;display:block;margin-top:3px;}
+  /* Metrics */
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .metric-val{font-size:26px;font-weight:700;}
+  .metric-sub{font-size:10px;color:var(--muted);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* Rec card */
+  #rec-card{border-radius:14px;padding:13px 17px;display:flex;align-items:center;gap:13px;transition:all 0.5s;}
+  #rec-icon{font-size:30px;min-width:34px;}
+  #rec-text{font-family:'Orbitron';font-size:15px;font-weight:700;letter-spacing:1px;}
+  #rec-sub{font-size:12px;color:#7a9ab8;margin-top:2px;}
+  /* Battery */
+  #batt-bar-wrap{height:8px;background:#0a1420;border-radius:4px;overflow:hidden;margin-top:10px;}
+  #batt-bar{height:100%;border-radius:4px;transition:width 0.4s;}
+  /* Map */
+  #map-wrap{border-radius:14px;overflow:hidden;border:1px solid var(--border);height:185px;flex-shrink:0;}
+  #map{width:100%;height:100%;}
+  /* Chart canvas */
+  #chart-wrap{position:relative;height:110px;}
+  #elev-canvas{width:100%;height:100%;}
+  /* Loading */
+  #loading-screen{text-align:center;padding:60px 20px;display:none;flex-direction:column;align-items:center;}
+  .spinner{width:48px;height:48px;border:3px solid var(--green);border-top-color:transparent;
+    border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 18px;}
+  #loading-msg{font-family:'Orbitron';font-size:12px;letter-spacing:2px;color:var(--green);}
+  /* Tip box */
+  .tip-box{background:rgba(56,200,240,0.05);border:1px solid rgba(56,200,240,0.12);
+    border-radius:10px;padding:11px 14px;font-size:11px;color:var(--muted);line-height:1.6;}
+  /* Error */
+  #error-box{background:rgba(248,113,113,0.09);border:1px solid rgba(248,113,113,0.3);
+    border-radius:12px;padding:12px 15px;color:var(--red);font-size:13px;display:none;}
+  /* Screens */
+  .screen{display:none;flex-direction:column;gap:11px;}
+  .screen.active{display:flex;}
+  /* Footer */
+  #footer{padding:9px 18px;border-top:1px solid #0f1e2e;display:flex;
+    justify-content:space-between;font-size:9px;color:#1e3a5a;flex-shrink:0;}
+  /* Done */
+  #done-card{background:rgba(0,255,157,0.07);border:1px solid rgba(0,255,157,0.2);
+    border-radius:14px;padding:26px;text-align:center;}
+  /* Animations */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .fade-up{animation:fadeUp 0.3s ease forwards;}
+  /* Scanlines */
+  #app::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- HEADER -->
+  <div id="header">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="logo-name">ELEVDRIVE</div>
+        <div class="logo-sub">EV ELEVATION NAVIGATOR</div>
+      </div>
+    </div>
+    <button class="back-btn" id="back-btn" onclick="resetAll()">← RUTA</button>
+  </div>
+
+  <!-- PROGRESS BAR -->
+  <div id="progress-bar"><div id="progress-fill"></div></div>
+
+  <!-- CONTENT -->
+  <div id="content">
+    <!-- ERROR -->
+    <div id="error-box"></div>
+
+    <!-- LOADING -->
+    <div id="loading-screen">
+      <div class="spinner"></div>
+      <div id="loading-msg">CALCULANDO...</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">Puede tardar unos segundos...</div>
+    </div>
+
+    <!-- SETUP SCREEN -->
+    <div id="screen-setup" class="screen active fade-up">
+
+      <div class="card">
+        <!-- SALIDA -->
+        <div class="lbl">📍 SALIDA</div>
+        <div id="origin-selected" class="selected-place" style="display:none;background:rgba(0,255,157,0.06);border:1px solid rgba(0,255,157,0.2);">
+          <div><div class="place-name" id="origin-name" style="color:var(--green)"></div><div class="place-coords" id="origin-coords"></div></div>
+          <button class="clear-btn" onclick="clearOrigin()">✕</button>
+        </div>
+        <div id="origin-form">
+          <div class="search-row">
+            <input class="search-input" id="origin-input" placeholder="Escribe ciudad o lugar..." onkeydown="if(event.key==='Enter') searchPlace('origin')">
+            <button class="search-btn" id="origin-btn" onclick="searchPlace('origin')">🔍</button>
+          </div>
+          <div id="origin-searching" style="display:none;font-size:11px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:7px;">
+            <div style="width:12px;height:12px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;"></div> Buscando...
+          </div>
+          <div id="origin-sugs" class="suggestions" style="display:none;"></div>
+          <div id="origin-error" style="font-size:11px;color:var(--red);margin-top:6px;display:none;"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- DESTINO -->
+        <div class="lbl">🏁 DESTINO</div>
+        <div id="dest-selected" class="selected-place" style="display:none;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.2);">
+          <div><div class="place-name" id="dest-name" style="color:var(--red)"></div><div class="place-coords" id="dest-coords"></div></div>
+          <button class="clear-btn" onclick="clearDest()">✕</button>
+        </div>
+        <div id="dest-form">
+          <div class="search-row">
+            <input class="search-input" id="dest-input" placeholder="Escribe ciudad o lugar..." onkeydown="if(event.key==='Enter') searchPlace('dest')">
+            <button class="search-btn" id="dest-btn" onclick="searchPlace('dest')">🔍</button>
+          </div>
+          <div id="dest-searching" style="display:none;font-size:11px;color:var(--muted);margin-top:8px;"></div>
+          <div id="dest-sugs" class="suggestions" style="display:none;"></div>
+          <div id="dest-error" style="font-size:11px;color:var(--red);margin-top:6px;display:none;"></div>
+        </div>
+      </div>
+
+      <!-- BATERÍA -->
+      <div class="card">
+        <div class="lbl">BATERÍA INICIAL</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <input type="range" min="10" max="100" step="5" value="80" id="batt-slider" oninput="document.getElementById('batt-val').textContent=this.value+'%'">
+          <div class="num" id="batt-val" style="font-size:22px;font-weight:700;color:var(--green);min-width:52px;">80%</div>
+        </div>
+      </div>
+
+      <button class="btn-primary btn-disabled" id="calc-btn" onclick="calcRoute()" disabled>BUSCA SALIDA Y DESTINO</button>
+
+      <div class="tip-box">
+        💡 <strong style="color:var(--blue)">Cómo guardar esta app:</strong> En Chrome, toca <strong style="color:var(--text)">⋮ → "Añadir a pantalla de inicio"</strong>. Funciona como app con GPS real, sin restricciones.
+      </div>
+    </div>
+
+    <!-- READY SCREEN -->
+    <div id="screen-ready" class="screen">
+      <div id="map-wrap"><div id="map"></div></div>
+
+      <div style="background:rgba(56,200,240,0.06);border:1px solid rgba(56,200,240,0.15);border-radius:14px;padding:14px 18px;">
+        <div class="lbl">RUTA CALCULADA</div>
+        <div class="num" id="route-label" style="font-size:12px;font-weight:700;color:var(--blue);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+        <div style="display:flex;gap:22px;margin-top:10px;">
+          <div><div style="font-size:9px;color:var(--muted);">DISTANCIA</div><div class="num" id="r-dist" style="font-size:17px;font-weight:700;"></div></div>
+          <div><div style="font-size:9px;color:var(--muted);">TIEMPO</div><div class="num" id="r-dur" style="font-size:17px;font-weight:700;"></div></div>
+          <div><div style="font-size:9px;color:var(--muted);">BATERÍA</div><div class="num" id="r-batt" style="font-size:17px;font-weight:700;color:var(--green);"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="lbl" style="margin-bottom:8px;">PERFIL DE ELEVACIÓN</div>
+        <div id="chart-wrap"><canvas id="elev-canvas"></canvas></div>
+      </div>
+
+      <div class="btn-grid">
+        <button class="btn-half" onclick="startDemo()"
+          style="background:linear-gradient(135deg,rgba(0,255,157,0.12),rgba(0,255,157,0.12));border:1px solid rgba(0,255,157,0.3);color:var(--green);">
+          ▶ SIMULAR<span>DEMO sin GPS</span>
+        </button>
+        <button class="btn-half" onclick="startGps()"
+          style="background:linear-gradient(135deg,rgba(56,200,240,0.12),rgba(56,200,240,0.12));border:1px solid rgba(56,200,240,0.3);color:var(--blue);">
+          📍 GPS REAL<span>Modo conducción</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- DRIVING SCREEN -->
+    <div id="screen-driving" class="screen">
+      <div id="map-wrap-d" style="border-radius:14px;overflow:hidden;border:1px solid var(--border);height:160px;flex-shrink:0;">
+        <div id="map2" style="width:100%;height:100%;"></div>
+      </div>
+
+      <!-- Recomendación -->
+      <div id="rec-card">
+        <div id="rec-icon">→</div>
+        <div><div id="rec-text">RUTA PLANA</div><div id="rec-sub">Consumo base normal</div></div>
+      </div>
+
+      <!-- Métricas -->
+      <div class="metrics">
+        <div class="card"><div class="lbl">PENDIENTE</div><div class="num metric-val" id="m-slope">+0.0%</div><div class="metric-sub" id="m-slope-sub">0.0° inclinación</div></div>
+        <div class="card"><div class="lbl">ALTITUD</div><div class="num metric-val" id="m-elev" style="color:var(--blue)">0m</div><div class="metric-sub">sobre el nivel del mar</div></div>
+        <div class="card"><div class="lbl">RECORRIDO</div><div class="num metric-val" id="m-km">0.0km</div><div class="metric-sub" id="m-km-sub">de 0 km</div></div>
+        <div class="card"><div class="lbl">FALTAN</div><div class="num metric-val" id="m-left">0.0km</div><div class="metric-sub" id="m-left-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div></div>
+      </div>
+
+      <!-- Batería -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div><div class="lbl">BATERÍA ACTUAL</div><div class="num" id="batt-current" style="font-size:32px;font-weight:700;">80<span style="font-size:13px;color:var(--muted);">%</span></div></div>
+          <div style="text-align:right;"><div class="lbl">AL LLEGAR</div><div class="num" id="batt-dest" style="font-size:32px;font-weight:700;">--<span style="font-size:13px;color:var(--muted);">%</span></div></div>
+        </div>
+        <div id="batt-bar-wrap"><div id="batt-bar" style="width:80%;background:linear-gradient(90deg,rgba(0,255,157,0.5),var(--green));"></div></div>
+      </div>
+
+      <!-- Mini chart mientras conduce -->
+      <div class="card">
+        <div class="lbl" style="margin-bottom:8px;">PERFIL DE ELEVACIÓN</div>
+        <div style="position:relative;height:100px;"><canvas id="elev-canvas2"></canvas></div>
+      </div>
+
+      <div id="speed-card" class="card" style="text-align:center;display:none;">
+        <div class="lbl">VELOCIDAD GPS</div>
+        <div class="num" id="m-speed" style="font-size:36px;font-weight:700;">0<span style="font-size:14px;color:var(--muted);">km/h</span></div>
+      </div>
+
+      <button onclick="stopAll()" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Orbitron';font-size:11px;letter-spacing:1px;cursor:pointer;">■ DETENER</button>
+    </div>
+
+    <!-- DONE SCREEN -->
+    <div id="screen-done" class="screen">
+      <div id="done-card">
+        <div style="font-size:36px;margin-bottom:8px;">🏁</div>
+        <div class="num" style="font-size:16px;font-weight:700;color:var(--green);letter-spacing:2px;">¡LLEGASTE!</div>
+        <div id="done-route" style="font-size:13px;color:#7a9ab8;margin-top:8px;"></div>
+        <div id="done-batt" style="font-size:13px;color:#7a9ab8;margin-top:4px;"></div>
+        <button onclick="resetAll()" style="margin-top:18px;background:linear-gradient(135deg,rgba(0,255,157,0.1),rgba(0,255,157,0.18));border:1px solid rgba(0,255,157,0.4);border-radius:10px;padding:13px 26px;color:var(--green);font-family:'Orbitron';font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;">NUEVA RUTA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div id="footer">
+    <span>ElevDrive v1.0</span>
+    <span>OSRM · Claude · Leaflet</span>
+    <span>ADL</span>
+  </div>
+</div>
+
+<script>
+const GMAP_KEY = "AIzaSyAhX2wXcFHcKcjj-FphB-cGp14otz_TiVw";
+
+// ── State ─────────────────────────────────
+let origin = null, dest = null;
+let routeData = [], totalKm = 0, routeDur = "";
+let currentKm = 0, battery = 80, startBatt = 80, speed = 0;
+let mode = "idle";
+let routeCoords = [];
+let mapInst = null, mapInst2 = null, carMarker = null, carMarker2 = null, polyLayer = null, polyLayer2 = null;
+let demoTimer = null, gpsWatch = null;
+let lastGpsPos = null;
+
+// ── Screen manager ────────────────────────
+function showScreen(name) {
+  ['setup','ready','driving','done'].forEach(s => {
+    document.getElementById('screen-'+s).classList.remove('active');
+  });
+  document.getElementById('loading-screen').style.display = 'none';
+  if (name === 'loading') {
+    document.getElementById('loading-screen').style.display = 'flex';
+  } else {
+    document.getElementById('screen-'+name).classList.add('active');
+    document.getElementById('screen-'+name).classList.add('fade-up');
+    setTimeout(() => document.getElementById('screen-'+name).classList.remove('fade-up'), 400);
+  }
+  document.getElementById('back-btn').style.display = (name === 'setup' || name === 'loading') ? 'none' : 'block';
+  document.getElementById('progress-bar').style.display = name === 'driving' ? 'block' : 'none';
+  setError('');
+}
+
+function setLoading(msg) { document.getElementById('loading-msg').textContent = msg; showScreen('loading'); }
+function setError(msg) {
+  const el = document.getElementById('error-box');
+  el.style.display = msg ? 'block' : 'none';
+  el.textContent = msg ? '⚠ ' + msg : '';
+}
+
+// ── Energy model ──────────────────────────
+function battDelta(slope) {
+  if (slope > 12) return -3.2; if (slope > 7) return -2.2; if (slope > 3) return -1.5;
+  if (slope > -2) return -0.85; if (slope > -5) return -0.15; if (slope > -9) return 0.70;
+  return 1.50;
+}
+function lerpElev(km) {
+  if (!routeData.length) return 0;
+  const k = Math.max(0, Math.min(km, totalKm));
+  for (let i = 0; i < routeData.length - 1; i++) {
+    const a = routeData[i], b = routeData[i+1];
+    if (k >= a.km && k <= b.km) return a.elev + ((k-a.km)/(b.km-a.km))*(b.elev-a.elev);
+  }
+  return routeData[routeData.length-1].elev;
+}
+function slopeAt(km) {
+  const w = Math.max(0.4, totalKm*0.012);
+  const e1 = lerpElev(Math.max(0,km-w)), e2 = lerpElev(Math.min(totalKm,km+w));
+  const dD = (Math.min(totalKm,km+w)-Math.max(0,km-w))*1000;
+  return dD > 0 ? ((e2-e1)/dD)*100 : 0;
+}
+function estimateBattAtDest(fromKm, batt) {
+  let b = batt;
+  for (let k = fromKm; k < totalKm; k += 0.4) b += battDelta(slopeAt(k)) * 0.4;
+  return Math.max(0, Math.min(100, b));
+}
+function haversineKm(lat1,lon1,lat2,lon2) {
+  const R=6371, r=Math.PI/180;
+  const dLat=(lat2-lat1)*r, dLon=(lon2-lon1)*r;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function sampleCoords(coords, n) {
+  if (coords.length <= n) return coords;
+  return Array.from({length:n},(_,i)=>coords[Math.round(i*(coords.length-1)/(n-1))]);
+}
+
+// ── Recommendation ────────────────────────
+function getRec(slope) {
+  if (slope<-8) return {text:'REGENERAR',sub:'Pendiente fuerte — recarga máxima',color:'#00ff9d',glow:'0 0 20px #00ff9d55',icon:'↘↘',bg:'rgba(0,255,157,0.10)'};
+  if (slope<-3) return {text:'REGENERAR',sub:'Buena pendiente — activa freno regen',color:'#00ff9d',glow:'0 0 14px #00ff9d44',icon:'↘',bg:'rgba(0,255,157,0.07)'};
+  if (slope<2)  return {text:'RUTA PLANA',sub:'Consumo base normal',color:'#38c8f0',glow:'0 0 10px #38c8f033',icon:'→',bg:'rgba(56,200,240,0.06)'};
+  if (slope<6)  return {text:'SUBIENDO',sub:'Mayor consumo — administra autonomía',color:'#fbbf24',glow:'0 0 14px #fbbf2444',icon:'↗',bg:'rgba(251,191,36,0.08)'};
+  return {text:'SUBIDA FUERTE',sub:'Alto consumo — máxima atención batería',color:'#f87171',glow:'0 0 18px #f8717155',icon:'↗↗',bg:'rgba(248,113,113,0.10)'};
+}
+
+// ── Search ────────────────────────────────
+async function searchPlace(which) {
+  const inputEl = document.getElementById(which==='origin'?'origin-input':'dest-input');
+  const q = inputEl.value.trim();
+  if (q.length < 2) return;
+  const btnEl = document.getElementById(which==='origin'?'origin-btn':'dest-btn');
+  const sugEl = document.getElementById(which==='origin'?'origin-sugs':'dest-sugs');
+  const errEl = document.getElementById(which==='origin'?'origin-error':'dest-error');
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<div style="width:14px;height:14px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;"></div>';
+  sugEl.style.display = 'none'; errEl.style.display = 'none';
+  try {
+    const results = await geocode(q);
+    if (!results.length) { errEl.textContent = 'Sin resultados. Intenta con otro nombre.'; errEl.style.display='block'; }
+    else { renderSuggestions(which, results, sugEl); }
+  } catch(e) { errEl.textContent = 'Error de búsqueda. Verifica conexión.'; errEl.style.display='block'; }
+  btnEl.disabled = false; btnEl.innerHTML = '🔍';
+}
+
+function renderSuggestions(which, results, container) {
+  container.innerHTML = '';
+  results.slice(0,5).forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'sug-item';
+    div.innerHTML = `<div>📍 ${r.name}</div>`;
+    div.onclick = () => selectPlace(which, r);
+    container.appendChild(div);
+  });
+  container.style.display = 'block';
+}
+
+function selectPlace(which, place) {
+  if (which === 'origin') {
+    origin = place;
+    document.getElementById('origin-form').style.display = 'none';
+    document.getElementById('origin-selected').style.display = 'flex';
+    document.getElementById('origin-name').textContent = place.name;
+    document.getElementById('origin-coords').textContent = `${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}`;
+    document.getElementById('origin-sugs').style.display = 'none';
+  } else {
+    dest = place;
+    document.getElementById('dest-form').style.display = 'none';
+    document.getElementById('dest-selected').style.display = 'flex';
+    document.getElementById('dest-name').textContent = place.name;
+    document.getElementById('dest-coords').textContent = `${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}`;
+    document.getElementById('dest-sugs').style.display = 'none';
+  }
+  updateCalcBtn();
+}
+
+function clearOrigin() {
+  origin = null;
+  document.getElementById('origin-form').style.display = 'block';
+  document.getElementById('origin-selected').style.display = 'none';
+  document.getElementById('origin-input').value = '';
+  updateCalcBtn();
+}
+function clearDest() {
+  dest = null;
+  document.getElementById('dest-form').style.display = 'block';
+  document.getElementById('dest-selected').style.display = 'none';
+  document.getElementById('dest-input').value = '';
+  updateCalcBtn();
+}
+function updateCalcBtn() {
+  const btn = document.getElementById('calc-btn');
+  if (origin && dest) {
+    btn.disabled = false; btn.className = 'btn-primary btn-green'; btn.textContent = 'CALCULAR RUTA ↗';
+  } else {
+    btn.disabled = true; btn.className = 'btn-primary btn-disabled'; btn.textContent = 'BUSCA SALIDA Y DESTINO';
+  }
+}
+
+// ── Claude Geocode ────────────────────────
+async function geocode(query) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model:'claude-sonnet-4-20250514', max_tokens:400,
+      messages:[{role:'user',content:`Geocoding Colombia only. Return ONLY a JSON array, no text.
+Query: "${query}"
+Format: [{"name":"City, Dept","lat":4.123,"lng":-74.456}]
+Up to 5 Colombian results. ONLY the JSON array.`}]
+    })
+  });
+  const d = await res.json();
+  const txt = (d.content?.[0]?.text||'[]').replace(/```json|```/g,'').trim();
+  const m = txt.match(/\[[\s\S]*\]/);
+  return m ? JSON.parse(m[0]) : [];
+}
+
+// ── OSRM Route ────────────────────────────
+async function fetchRoute(oLat,oLng,dLat,dLng) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  const d = await res.json();
+  if (d.code!=='Ok') throw new Error('OSRM no encontró ruta entre esos puntos');
+  const route = d.routes[0];
+  const sec = route.duration;
+  return {
+    coords: route.geometry.coordinates.map(c=>[c[1],c[0]]),
+    distKm: route.distance/1000,
+    durText: sec>3600?`${Math.floor(sec/3600)}h ${Math.floor((sec%3600)/60)}min`:`${Math.floor(sec/60)} min`
+  };
+}
+
+// ── Elevation ─────────────────────────────
+async function fetchElev(points) {
+  try {
+    const locs = points.map(p=>`${p[0].toFixed(5)},${p[1].toFixed(5)}`).join('|');
+    const res = await fetch(`https://maps.googleapis.com/maps/api/elevation/json?locations=${locs}&key=${GMAP_KEY}`);
+    const d = await res.json();
+    if (d.status==='OK') return d.results.map(r=>r.elevation);
+    throw new Error(d.status);
+  } catch {
+    const res2 = await fetch('https://api.open-elevation.com/api/v1/lookup',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({locations:points.map(p=>({latitude:p[0],longitude:p[1]}))})
+    });
+    const d2 = await res2.json();
+    return d2.results.map(r=>r.elevation);
+  }
+}
+
+// ── Calc Route ────────────────────────────
+async function calcRoute() {
+  if (!origin||!dest) return;
+  setLoading('Calculando ruta...');
+  try {
+    const {coords,distKm,durText} = await fetchRoute(origin.lat,origin.lng,dest.lat,dest.lng);
+    routeCoords = coords;
+    setLoading('Obteniendo perfil de elevación...');
+    const sampled = sampleCoords(coords,80);
+    const elevs = await fetchElev(sampled);
+    let cum=0;
+    routeData = sampled.map((pt,i)=>{
+      if(i>0) cum+=haversineKm(sampled[i-1][0],sampled[i-1][1],pt[0],pt[1]);
+      return {km:+cum.toFixed(2),elev:Math.round(elevs[i]??0),lat:pt[0],lng:pt[1]};
+    });
+    totalKm=distKm; routeDur=durText;
+    startBatt=parseInt(document.getElementById('batt-slider').value);
+    currentKm=0; battery=startBatt;
+    // Update ready screen
+    document.getElementById('route-label').textContent = `${origin.name} → ${dest.name}`;
+    document.getElementById('r-dist').textContent = `${distKm.toFixed(1)} km`;
+    document.getElementById('r-dur').textContent = durText;
+    document.getElementById('r-batt').textContent = `${startBatt}%`;
+    document.getElementById('m-left-sub').textContent = dest.name;
+    showScreen('ready');
+    setTimeout(()=>{ initMap('map',false); drawChart('elev-canvas',false); },200);
+  } catch(e) { setError(e.message||'Error de conexión. Verifica internet.'); showScreen('setup'); }
+}
+
+// ── Leaflet Map ───────────────────────────
+function initMap(divId, isDriving) {
+  const existing = isDriving ? mapInst2 : mapInst;
+  if (existing) { try{existing.invalidateSize();}catch(e){} return; }
+  const L = window.L;
+  const m = L.map(divId,{center:[4.65,-74.1],zoom:9,zoomControl:false,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19}).addTo(m);
+  if (isDriving) mapInst2=m; else mapInst=m;
+  setTimeout(()=>drawRoute(m,isDriving),100);
+}
+
+function drawRoute(m, isDriving) {
+  if (!m||!routeCoords.length) return;
+  const L=window.L;
+  const pl = isDriving ? polyLayer2 : polyLayer;
+  if (pl) { try{pl.remove();}catch(e){} }
+  const newPoly = L.polyline(routeCoords,{color:'#38c8f0',weight:3.5,opacity:0.9}).addTo(m);
+  if (isDriving) polyLayer2=newPoly; else polyLayer=newPoly;
+  m.fitBounds(newPoly.getBounds(),{padding:[24,24]});
+  const dot=(ll,c)=>L.circleMarker(ll,{radius:6,fillColor:c,fillOpacity:1,color:'#fff',weight:2}).addTo(m);
+  dot(routeCoords[0],'#00ff9d');
+  dot(routeCoords[routeCoords.length-1],'#f87171');
+  const icon=L.divIcon({html:`<div style="width:14px;height:14px;background:#fbbf24;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 8px #fbbf2488;"></div>`,className:'',iconSize:[14,14],iconAnchor:[7,7]});
+  const cm = L.marker(routeCoords[0],{icon,zIndexOffset:1000}).addTo(m);
+  if (isDriving) carMarker2=cm; else carMarker=cm;
+}
+
+function moveCarMarker() {
+  const pt = routeData.reduce((a,b)=>Math.abs(b.km-currentKm)<Math.abs(a.km-currentKm)?b:a,routeData[0]);
+  if (!pt) return;
+  if (carMarker2&&pt.lat) try{carMarker2.setLatLng([pt.lat,pt.lng]);}catch(e){}
+}
+
+// ── Elevation Chart (Canvas) ──────────────
+function drawChart(canvasId, showPosition) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas||!routeData.length) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio||1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  ctx.scale(dpr,dpr);
+  const minE=Math.min(...routeData.map(p=>p.elev))-50;
+  const maxE=Math.max(...routeData.map(p=>p.elev))+50;
+  const maxK=totalKm;
+  const toX=km=>((km/maxK)*W*0.88)+W*0.06;
+  const toY=e=>H-8-((e-minE)/(maxE-minE))*(H-22);
+  // Grid
+  ctx.strokeStyle='#1a2a3a'; ctx.lineWidth=0.5;
+  for(let i=0;i<=4;i++){const y=H-8-((H-22)/4)*i;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  // Gradient fill
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'rgba(56,200,240,0.3)'); grad.addColorStop(1,'rgba(56,200,240,0.02)');
+  ctx.beginPath(); ctx.moveTo(toX(routeData[0].km),toY(routeData[0].elev));
+  routeData.forEach(p=>ctx.lineTo(toX(p.km),toY(p.elev)));
+  ctx.lineTo(toX(routeData[routeData.length-1].km),H); ctx.lineTo(toX(routeData[0].km),H); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+  // Line
+  ctx.beginPath(); ctx.strokeStyle='#38c8f0'; ctx.lineWidth=2;
+  routeData.forEach((p,i)=>i===0?ctx.moveTo(toX(p.km),toY(p.elev)):ctx.lineTo(toX(p.km),toY(p.elev)));
+  ctx.stroke();
+  // Position indicator
+  if (showPosition && currentKm>0) {
+    const x=toX(currentKm);
+    ctx.strokeStyle='#00ff9d'; ctx.lineWidth=1.5; ctx.setLineDash([4,2]);
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    ctx.setLineDash([]);
+    const y=toY(lerpElev(currentKm));
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#00ff9d'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+  // Labels
+  ctx.fillStyle='#2a4a6a'; ctx.font=`9px Orbitron,monospace`; ctx.textAlign='center';
+  [0,0.25,0.5,0.75,1].forEach(t=>{
+    ctx.fillText(`${(t*maxK).toFixed(0)}k`,toX(t*maxK),H-1);
+  });
+  ctx.textAlign='right';
+  [minE+50,Math.round((minE+maxE)/2),maxE-50].forEach(e=>{
+    ctx.fillText(`${Math.round(e)}m`,W*0.06-2,toY(e)+3);
+  });
+}
+
+// ── Update driving UI ─────────────────────
+function updateDrivingUI() {
+  const slope = slopeAt(currentKm);
+  const elev = Math.round(lerpElev(currentKm));
+  const kmLeft = Math.max(0, totalKm-currentKm);
+  const rec = getRec(slope);
+  const bColor = battery>50?'#00ff9d':battery>25?'#fbbf24':'#f87171';
+  const battDest = Math.round(estimateBattAtDest(currentKm,battery));
+  const battDestColor = battDest>30?'#00ff9d':battDest>15?'#fbbf24':'#f87171';
+
+  // Rec
+  const rc = document.getElementById('rec-card');
+  rc.style.background=rec.bg; rc.style.border=`1px solid ${rec.color}33`; rc.style.boxShadow=rec.glow;
+  document.getElementById('rec-icon').style.color=rec.color; document.getElementById('rec-icon').textContent=rec.icon;
+  document.getElementById('rec-text').style.color=rec.color; document.getElementById('rec-text').textContent=rec.text;
+  document.getElementById('rec-sub').textContent=rec.sub;
+
+  // Metrics
+  const slopeStr=(slope>=0?'+':'')+slope.toFixed(1)+'%';
+  const slopeDeg=(Math.atan(slope/100)*180/Math.PI).toFixed(1);
+  document.getElementById('m-slope').textContent=slopeStr;
+  document.getElementById('m-slope').style.color=slope<-3?'#00ff9d':slope>5?'#f87171':'#e2e8f0';
+  document.getElementById('m-slope-sub').textContent=slopeDeg+'° inclinación';
+  document.getElementById('m-elev').textContent=elev+'m';
+  document.getElementById('m-km').textContent=currentKm.toFixed(1)+'km';
+  document.getElementById('m-km-sub').textContent=`de ${totalKm.toFixed(1)} km`;
+  document.getElementById('m-left').textContent=kmLeft.toFixed(1)+'km';
+
+  // Battery
+  document.getElementById('batt-current').innerHTML=`${battery.toFixed(0)}<span style="font-size:13px;color:var(--muted);">%</span>`;
+  document.getElementById('batt-current').style.color=bColor;
+  document.getElementById('batt-dest').innerHTML=`${battDest}<span style="font-size:13px;color:var(--muted);">%</span>`;
+  document.getElementById('batt-dest').style.color=battDestColor;
+  document.getElementById('batt-bar').style.width=battery+'%';
+  document.getElementById('batt-bar').style.background=`linear-gradient(90deg,${bColor}88,${bColor})`;
+
+  // Progress
+  document.getElementById('progress-fill').style.width=`${(currentKm/totalKm)*100}%`;
+
+  // Chart
+  drawChart('elev-canvas2',true);
+
+  // Car marker
+  moveCarMarker();
+}
+
+// ── Demo mode ─────────────────────────────
+function startDemo() {
+  startBatt=parseInt(document.getElementById('batt-slider').value);
+  currentKm=0; battery=startBatt; mode='demo';
+  showScreen('driving');
+  document.getElementById('speed-card').style.display='none';
+  setTimeout(()=>{ initMap('map2',true); updateDrivingUI(); },200);
+  demoTimer=setInterval(()=>{
+    currentKm=Math.min(currentKm+0.28,totalKm);
+    battery=Math.max(0,Math.min(100,battery+battDelta(slopeAt(currentKm))*0.28));
+    updateDrivingUI();
+    if(currentKm>=totalKm){ clearInterval(demoTimer); finishRoute(); }
+  },220);
+}
+
+// ── GPS mode ──────────────────────────────
+function startGps() {
+  if (!navigator.geolocation) { alert('GPS no disponible en este navegador'); return; }
+  startBatt=parseInt(document.getElementById('batt-slider').value);
+  currentKm=0; battery=startBatt; mode='gps'; lastGpsPos=null;
+  showScreen('driving');
+  document.getElementById('speed-card').style.display='block';
+  setTimeout(()=>{ initMap('map2',true); updateDrivingUI(); },200);
+  gpsWatch=navigator.geolocation.watchPosition(pos=>{
+    const spd=pos.coords.speed!=null?+(pos.coords.speed*3.6).toFixed(0):0;
+    document.getElementById('m-speed').innerHTML=`${spd}<span style="font-size:14px;color:var(--muted);">km/h</span>`;
+    if(lastGpsPos){
+      const d=haversineKm(lastGpsPos.lat,lastGpsPos.lng,pos.coords.latitude,pos.coords.longitude);
+      if(d>0.008){
+        currentKm=Math.min(currentKm+d,totalKm);
+        battery=Math.max(0,Math.min(100,battery+battDelta(slopeAt(currentKm))*d));
+        updateDrivingUI();
+      }
+    }
+    lastGpsPos={lat:pos.coords.latitude,lng:pos.coords.longitude};
+  },err=>alert('GPS error: '+err.message),{enableHighAccuracy:true,maximumAge:1500,timeout:10000});
+}
+
+function stopAll() {
+  clearInterval(demoTimer);
+  if(gpsWatch!=null) navigator.geolocation.clearWatch(gpsWatch);
+  mode='idle'; currentKm=0; battery=startBatt;
+  showScreen('ready');
+}
+
+function finishRoute() {
+  mode='idle';
+  const bColor=battery>50?'#00ff9d':battery>25?'#fbbf24':'#f87171';
+  document.getElementById('done-route').innerHTML=`${origin.name} → <strong style="color:#e2e8f0">${dest.name}</strong>`;
+  document.getElementById('done-batt').innerHTML=`Batería final: <span style="color:${bColor};font-weight:600">${battery.toFixed(0)}%</span>`;
+  showScreen('done');
+}
+
+function resetAll() {
+  clearInterval(demoTimer);
+  if(gpsWatch!=null) navigator.geolocation.clearWatch(gpsWatch);
+  origin=null; dest=null; routeData=[]; totalKm=0; routeCoords=[]; currentKm=0; battery=80; mode='idle';
+  clearOrigin(); clearDest();
+  if(mapInst){try{mapInst.remove();}catch(e){} mapInst=null;}
+  if(mapInst2){try{mapInst2.remove();}catch(e){} mapInst2=null;}
+  polyLayer=null; polyLayer2=null; carMarker=null; carMarker2=null;
+  showScreen('setup');
+}
+
+// ── Init ──────────────────────────────────
+updateCalcBtn();
+</script>
+</body>
+</html>
