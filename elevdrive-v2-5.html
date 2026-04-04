@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>ElevDrive ⚡</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{--bg:#060a12;--card:#0d1824;--border:#1a2a3a;--green:#00ff9d;--blue:#38c8f0;--yellow:#fbbf24;--red:#f87171;--orange:#fb923c;--text:#e2e8f0;--muted:#4a6a8a;}
+html,body{background:var(--bg);color:var(--text);font-family:'Barlow Condensed','Arial Narrow',sans-serif;height:100%;overflow:hidden;}
+#app{max-width:480px;margin:0 auto;height:100vh;display:flex;flex-direction:column;}
+.num{font-family:'Orbitron',monospace;}
+/* Header */
+#header{display:flex;justify-content:space-between;align-items:center;padding:11px 16px 9px;border-bottom:1px solid #0f1e2e;flex-shrink:0;background:var(--bg);z-index:100;}
+.logo{display:flex;align-items:center;gap:9px;}
+.logo-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#00ff9d1a,#00ff9d33);border:1px solid #00ff9d44;display:flex;align-items:center;justify-content:center;font-size:16px;}
+.logo-name{font-family:'Orbitron';font-size:13px;font-weight:700;color:var(--green);letter-spacing:2px;}
+.logo-sub{font-size:9px;color:var(--muted);letter-spacing:1px;}
+.hdr-right{display:flex;align-items:center;gap:8px;}
+#back-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--muted);font-size:10px;font-family:'Orbitron';cursor:pointer;display:none;}
+#veh-btn{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;padding:5px 10px;color:var(--yellow);font-size:10px;font-family:'Orbitron';cursor:pointer;letter-spacing:1px;}
+#progress-bar{height:3px;background:#0f1e2e;flex-shrink:0;display:none;}
+#progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--blue));transition:width 0.3s;}
+/* Content */
+#content{flex:1;overflow-y:auto;padding:13px 15px;display:flex;flex-direction:column;gap:10px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+.lbl{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;}
+/* Vehicle modal */
+#veh-modal{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:999;display:none;flex-direction:column;justify-content:flex-end;}
+#veh-modal.open{display:flex;}
+#veh-sheet{background:#0a1520;border-radius:18px 18px 0 0;padding:20px 18px 32px;max-height:90vh;overflow-y:auto;}
+.veh-title{font-family:'Orbitron';font-size:14px;font-weight:700;color:var(--text);letter-spacing:1px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
+.veh-type-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.vtype-btn{padding:14px 10px;border-radius:11px;font-family:'Orbitron';font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;border:2px solid;text-align:center;transition:all 0.2s;}
+.vtype-btn span{font-size:9px;font-weight:400;display:block;margin-top:4px;opacity:0.7;}
+.vtype-ev{color:var(--green);border-color:var(--border);background:var(--card);}
+.vtype-ev.sel{border-color:var(--green);background:rgba(0,255,157,0.1);}
+.vtype-phev{color:var(--blue);border-color:var(--border);background:var(--card);}
+.vtype-phev.sel{border-color:var(--blue);background:rgba(56,200,240,0.1);}
+.field-row{margin-bottom:13px;}
+.field-lbl{font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;}
+.field-row-inline{display:flex;align-items:center;gap:10px;}
+.num-input{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:10px 13px;color:var(--text);font-size:16px;font-family:'Orbitron';width:100%;outline:none;text-align:right;}
+.num-input:focus{border-color:var(--blue);}
+.field-unit{font-size:11px;color:var(--muted);white-space:nowrap;min-width:65px;}
+.section-title{font-size:10px;color:var(--muted);letter-spacing:2px;margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.phev-section{display:none;}
+.phev-section.show{display:block;}
+.veh-save-btn{width:100%;padding:14px;border-radius:11px;font-family:'Orbitron';font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;background:linear-gradient(135deg,rgba(0,255,157,0.1),rgba(0,255,157,0.18));border:1px solid rgba(0,255,157,0.4);color:var(--green);margin-top:4px;}
+/* Tooltip system */
+.field-lbl-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.info-btn{width:22px;height:22px;border-radius:50%;background:rgba(56,200,240,0.12);border:1px solid rgba(56,200,240,0.3);color:var(--blue);font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-family:serif;font-style:italic;line-height:1;}
+.info-btn:active{background:rgba(56,200,240,0.28);}
+#tip-modal{position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:1099;display:none;align-items:center;justify-content:center;padding:20px;}
+#tip-modal.open{display:flex;}
+#tip-box{background:#0c1828;border:1px solid #1a2a3a;border-radius:16px;padding:22px 20px 18px;max-width:400px;width:100%;}
+.tip-tag{display:inline-block;font-family:'Orbitron';font-size:9px;letter-spacing:1px;padding:3px 9px;border-radius:20px;margin-bottom:10px;}
+.tip-tag-ev{background:rgba(0,255,157,0.12);color:#00ff9d;border:1px solid rgba(0,255,157,0.3);}
+.tip-tag-phev{background:rgba(56,200,240,0.12);color:#38c8f0;border:1px solid rgba(56,200,240,0.3);}
+.tip-tag-both{background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);}
+#tip-title{font-family:'Orbitron';font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:10px;line-height:1.3;}
+#tip-desc{font-size:14px;color:#9ab8d4;line-height:1.65;margin-bottom:12px;}
+#tip-example{background:rgba(0,0,0,0.35);border-left:3px solid #38c8f0;border-radius:0 8px 8px 0;padding:10px 13px;margin-bottom:12px;font-size:13px;color:#e2e8f0;line-height:1.6;}
+#tip-where{font-size:12px;color:#4a6a8a;line-height:1.65;padding:10px 13px;background:rgba(56,200,240,0.04);border-radius:8px;margin-bottom:16px;}
+#tip-where strong{color:#38c8f0;}
+#tip-close{width:100%;padding:12px;border-radius:10px;background:rgba(56,200,240,0.1);border:1px solid rgba(56,200,240,0.3);color:#38c8f0;font-family:'Orbitron';font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;}
+.first-use{background:linear-gradient(135deg,rgba(251,191,36,0.07),rgba(56,200,240,0.07));border:1px solid rgba(251,191,36,0.18);border-radius:12px;padding:13px 14px;display:flex;gap:11px;align-items:flex-start;}
+.fu-icon{font-size:20px;flex-shrink:0;margin-top:2px;}
+.fu-text{font-size:12px;color:#9ab8d4;line-height:1.65;}
+.fu-text strong{color:#fbbf24;}
+.fu-btn{display:inline-block;margin-top:8px;padding:7px 14px;border-radius:8px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;font-family:'Orbitron';font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;}
+/* Tooltip system */
+.field-lbl-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.info-btn{width:20px;height:20px;border-radius:50%;background:rgba(56,200,240,0.12);border:1px solid rgba(56,200,240,0.3);color:var(--blue);font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:serif;font-style:italic;}
+.info-btn:active{background:rgba(56,200,240,0.25);}
+#tip-modal{position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:1099;display:none;align-items:center;justify-content:center;padding:24px;}
+#tip-modal.open{display:flex;}
+#tip-box{background:#0c1828;border:1px solid var(--border);border-radius:16px;padding:22px 20px;max-width:380px;width:100%;position:relative;}
+.tip-tag{display:inline-block;font-family:'Orbitron';font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:20px;margin-bottom:10px;}
+.tip-tag-ev{background:rgba(0,255,157,0.12);color:var(--green);border:1px solid rgba(0,255,157,0.3);}
+.tip-tag-phev{background:rgba(56,200,240,0.12);color:var(--blue);border:1px solid rgba(56,200,240,0.3);}
+.tip-tag-both{background:rgba(251,191,36,0.12);color:var(--yellow);border:1px solid rgba(251,191,36,0.3);}
+#tip-title{font-family:'Orbitron';font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;}
+#tip-desc{font-size:14px;color:#9ab8d4;line-height:1.6;margin-bottom:14px;}
+#tip-example{background:rgba(0,0,0,0.3);border-left:3px solid var(--blue);border-radius:0 8px 8px 0;padding:10px 13px;margin-bottom:14px;font-size:13px;color:var(--text);line-height:1.6;}
+#tip-where{font-size:12px;color:var(--muted);line-height:1.6;padding:10px 13px;background:rgba(56,200,240,0.04);border-radius:8px;margin-bottom:16px;}
+#tip-where strong{color:var(--blue);}
+#tip-close{width:100%;padding:12px;border-radius:10px;background:rgba(56,200,240,0.1);border:1px solid rgba(56,200,240,0.3);color:var(--blue);font-family:'Orbitron';font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;}
+/* First use banner */
+#first-use-banner{background:linear-gradient(135deg,rgba(251,191,36,0.08),rgba(56,200,240,0.08));border:1px solid rgba(251,191,36,0.2);border-radius:12px;padding:13px 14px;display:flex;gap:12px;align-items:flex-start;}
+#first-use-banner .banner-icon{font-size:22px;flex-shrink:0;margin-top:1px;}
+#first-use-banner .banner-text{font-size:12px;color:#9ab8d4;line-height:1.6;}
+#first-use-banner .banner-text strong{color:var(--yellow);}
+#first-use-banner .banner-btn{margin-top:8px;padding:7px 14px;border-radius:8px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:var(--yellow);font-family:'Orbitron';font-size:10px;font-weight:700;cursor:pointer;letter-spacing:1px;}
+/* Search */
+.search-row{display:flex;gap:8px;margin-top:6px;}
+.search-input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px 13px;color:var(--text);font-size:15px;font-family:'Barlow Condensed';outline:none;}
+.search-input:focus{border-color:var(--blue);}
+.search-input::placeholder{color:#2a4a6a;}
+.search-btn{background:rgba(56,200,240,0.12);border:1px solid rgba(56,200,240,0.35);border-radius:10px;padding:0 15px;color:var(--blue);cursor:pointer;font-size:19px;min-width:50px;display:flex;align-items:center;justify-content:center;}
+.search-btn:active{background:rgba(56,200,240,0.25);}
+.search-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.sugs{margin-top:7px;border-radius:10px;overflow:hidden;border:1px solid var(--border);display:none;}
+.sug-item{padding:11px 13px;background:var(--card);cursor:pointer;border-bottom:1px solid var(--border);font-size:14px;}
+.sug-item:last-child{border-bottom:none;}
+.sug-item:active{background:#1a2a3a;}
+.sug-region{font-size:10px;color:var(--muted);margin-top:2px;}
+.sel-place{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-radius:10px;margin-top:6px;display:none;}
+.clear-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--muted);cursor:pointer;font-size:12px;}
+.divider{height:1px;background:var(--border);margin:12px 0;}
+input[type=range]{width:100%;accent-color:var(--green);height:4px;}
+.err-msg{font-size:11px;color:var(--red);margin-top:6px;display:none;}
+.spinner-sm{width:13px;height:13px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0;}
+.status-msg{font-size:11px;margin-top:7px;display:none;align-items:center;gap:7px;}
+/* Buttons */
+.btn-main{width:100%;padding:15px;border-radius:12px;font-family:'Orbitron';font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all 0.3s;border:1px solid;}
+.btn-on{background:linear-gradient(135deg,rgba(0,255,157,0.1),rgba(0,255,157,0.18));border-color:rgba(0,255,157,0.4)!important;color:var(--green);}
+.btn-off{background:var(--card);border-color:var(--border)!important;color:#2a4a6a;cursor:not-allowed;}
+.btn2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn-half{padding:14px 8px;border-radius:11px;font-family:'Orbitron';font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;border:1px solid;text-align:center;}
+.btn-half span{font-size:9px;opacity:0.65;font-weight:400;display:block;margin-top:3px;}
+/* Metrics */
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.mv{font-size:24px;font-weight:700;}
+.ms{font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* Alerts */
+.alert-box{border-radius:12px;padding:11px 14px;font-size:12px;line-height:1.5;display:none;}
+.alert-warn{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.35);color:var(--yellow);}
+.alert-danger{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.35);color:var(--red);}
+.alert-ok{background:rgba(0,255,157,0.07);border:1px solid rgba(0,255,157,0.25);color:var(--green);}
+.alert-icon{font-size:16px;margin-right:6px;}
+/* Rec card */
+#rec-card{border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;transition:all 0.5s;}
+/* Batt bar */
+#batt-bar-w{height:8px;background:#0a1420;border-radius:4px;overflow:hidden;margin-top:10px;}
+#batt-bar{height:100%;border-radius:4px;transition:width 0.4s,background 0.4s;}
+/* PHEV dual bar */
+#phev-bar-wrap{margin-top:10px;}
+.dual-bar{height:7px;background:#0a1420;border-radius:4px;overflow:hidden;margin-bottom:4px;}
+.dual-bar-fill{height:100%;border-radius:4px;transition:width 0.4s;}
+/* Map */
+.map-box{border-radius:13px;overflow:hidden;border:1px solid var(--border);flex-shrink:0;}
+/* Screens */
+.screen{display:none;flex-direction:column;gap:10px;}
+.screen.on{display:flex;}
+.fade{animation:fadeUp 0.3s ease;}
+/* Loading */
+#loading-wrap{display:none;flex-direction:column;align-items:center;padding:70px 20px;}
+.spinner-lg{width:48px;height:48px;border:3px solid var(--green);border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:18px;}
+#load-msg{font-family:'Orbitron';font-size:12px;letter-spacing:2px;color:var(--green);}
+#err-box{background:rgba(248,113,113,0.09);border:1px solid rgba(248,113,113,0.3);border-radius:12px;padding:11px 14px;color:var(--red);font-size:13px;display:none;}
+.tip{background:rgba(56,200,240,0.05);border:1px solid rgba(56,200,240,0.1);border-radius:10px;padding:10px 13px;font-size:11px;color:var(--muted);line-height:1.65;}
+/* Veh badge */
+#veh-badge{font-size:11px;color:var(--muted);text-align:center;padding:6px;}
+#footer{padding:8px 18px;border-top:1px solid #0f1e2e;display:flex;justify-content:space-between;font-size:9px;color:#1e3a5a;flex-shrink:0;background:var(--bg);}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HEADER -->
+<div id="header">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div>
+      <div class="logo-name">ELEVDRIVE</div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <button id="veh-btn" onclick="openVehModal()">🚗 VEHÍCULO</button>
+    <button id="back-btn" onclick="resetAll()">← RUTA</button>
+  </div>
+</div>
+<div id="progress-bar"><div id="progress-fill"></div></div>
+
+<!-- VEHICLE MODAL -->
+<div id="veh-modal" onclick="if(event.target===this)closeVehModal()">
+  <div id="veh-sheet">
+    <div class="veh-title">
+      PERFIL DE VEHÍCULO
+      <button onclick="closeVehModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;">×</button>
+    </div>
+
+    <div class="veh-type-row">
+      <div class="vtype-btn vtype-ev sel" id="btn-ev" onclick="setVehType('ev')">
+        ⚡ ELÉCTRICO<span>EV puro</span>
+      </div>
+      <div class="vtype-btn vtype-phev" id="btn-phev" onclick="setVehType('phev')">
+        🔋 HÍBRIDO<span>PHEV enchufable</span>
+      </div>
+    </div>
+
+    <div class="section-title">BATERÍA PRINCIPAL</div>
+    <div class="field-row">
+      <div class="field-lbl-row">
+        <span class="field-lbl" style="margin-bottom:0;">CAPACIDAD TOTAL</span>
+        <button class="info-btn" onclick="showTip('cap')">i</button>
+      </div>
+      <div class="field-row-inline">
+        <input class="num-input" type="number" id="f-cap" value="60" min="1" max="200" step="1">
+        <span class="field-unit">kWh</span>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field-lbl-row">
+        <span class="field-lbl" style="margin-bottom:0;">CONSUMO PROMEDIO</span>
+        <button class="info-btn" onclick="showTip('cons')">i</button>
+      </div>
+      <div class="field-row-inline">
+        <input class="num-input" type="number" id="f-cons" value="18" min="5" max="50" step="0.5">
+        <span class="field-unit">kWh/100km</span>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field-lbl-row">
+        <span class="field-lbl" style="margin-bottom:0;">UMBRAL MÍNIMO SEGURO</span>
+        <button class="info-btn" onclick="showTip('min')">i</button>
+      </div>
+      <div class="field-row-inline">
+        <input class="num-input" type="number" id="f-min" value="15" min="5" max="30" step="5">
+        <span class="field-unit">% reserva</span>
+      </div>
+    </div>
+
+    <!-- PHEV extra fields -->
+    <div id="phev-section" class="phev-section">
+      <div class="section-title">MODO HÍBRIDO (motor gasolina)</div>
+      <div class="field-row">
+        <div class="field-lbl-row">
+          <span class="field-lbl" style="margin-bottom:0;">RECARGA MÁXIMA EN REGEN</span>
+          <button class="info-btn" onclick="showTip('regen')">i</button>
+        </div>
+        <div class="field-row-inline">
+          <input class="num-input" type="number" id="f-regen" value="8" min="1" max="30" step="0.5">
+          <span class="field-unit">kWh máx</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-lbl-row">
+          <span class="field-lbl" style="margin-bottom:0;">CONSUMO EN MODO HÍBRIDO</span>
+          <button class="info-btn" onclick="showTip('hcons')">i</button>
+        </div>
+        <div class="field-row-inline">
+          <input class="num-input" type="number" id="f-hcons" value="6" min="1" max="20" step="0.5">
+          <span class="field-unit">kWh/100km</span>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-lbl-row">
+          <span class="field-lbl" style="margin-bottom:0;">UMBRAL CAMBIO A HÍBRIDO</span>
+          <button class="info-btn" onclick="showTip('hthresh')">i</button>
+        </div>
+        <div class="field-row-inline">
+          <input class="num-input" type="number" id="f-hthresh" value="20" min="10" max="35" step="5">
+          <span class="field-unit">% batería</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="veh-save-btn" onclick="saveVehicle()">GUARDAR PERFIL ✓</button>
+    <div id="veh-saved" style="text-align:center;font-size:11px;color:var(--green);margin-top:8px;display:none;">✓ Perfil guardado</div>
+  </div>
+</div>
+
+
+
+
+
+  <div id="loading-wrap">
+    <div class="spinner-lg"></div>
+    <div id="load-msg">CALCULANDO...</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;">Puede tardar unos segundos...</div>
+  </div>
+
+  <!-- SETUP -->
+  <div id="s-setup" class="screen on fade">
+
+
+    <!-- First use banner -->
+    <div class="first-use" id="first-use-banner">
+      <div class="fu-icon">🚗</div>
+      <div class="fu-text">
+        <strong>Configura tu vehículo primero</strong> para obtener cálculos precisos de batería y alertas en tiempo real.<br>
+        Toca <strong style="color:#38c8f0">🚗 VEHÍCULO</strong> arriba o el botón de abajo.<br>
+        <button class="fu-btn" onclick="openVehModal()">⚙ CONFIGURAR AHORA</button>
+      </div>
+    </div>
+
+    <!-- Vehicle badge -->
+    <div id="veh-badge" class="card" onclick="openVehModal()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div class="lbl">VEHÍCULO CONFIGURADO</div>
+        <div id="veh-desc" style="font-size:13px;color:var(--yellow);font-weight:600;">⚡ EV · 60 kWh · 18 kWh/100km</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);">✎ editar</div>
+    </div>
+
+    <div class="card">
+      <!-- SALIDA -->
+      <div class="lbl">📍 SALIDA</div>
+      <div id="orig-sel" class="sel-place" style="background:rgba(0,255,157,0.06);border:1px solid rgba(0,255,157,0.2);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div id="orig-gps-badge" style="display:none;font-size:11px;padding:2px 7px;border-radius:10px;background:rgba(0,255,157,0.15);color:var(--green);border:1px solid rgba(0,255,157,0.3);">GPS</div>
+          <div><div style="font-size:15px;font-weight:600;color:var(--green);" id="orig-name"></div><div style="font-size:10px;color:var(--muted);" id="orig-coords"></div></div>
+        </div>
+        <button class="clear-btn" onclick="clearPlace('orig')">✕</button>
+      </div>
+      <div id="orig-form">
+        <!-- GPS button -->
+        <button id="gps-orig-btn" onclick="useGpsAsOrigin()" style="width:100%;margin-top:6px;padding:12px;border-radius:10px;background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.25);color:var(--green);font-family:'Barlow Condensed';font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;">
+          <span style="font-size:18px;">📍</span>
+          <span>Usar mi ubicación actual</span>
+        </button>
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 0;">
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+          <span style="font-size:11px;color:var(--muted);">o escribe</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+        </div>
+        <div class="search-row">
+          <input class="search-input" id="orig-in" placeholder="Ej: Cachipay, Cundinamarca" onkeydown="if(event.key==='Enter')doSearch('orig')">
+          <button class="search-btn" id="orig-sbtn" onclick="doSearch('orig')">🔍</button>
+        </div>
+        <div class="status-msg" id="orig-status"><div class="spinner-sm"></div><span style="color:var(--muted)" id="orig-status-text">Buscando...</span></div>
+        <div class="err-msg" id="orig-err"></div>
+        <div class="sugs" id="orig-sugs"></div>
+      </div>
+      <div class="divider"></div>
+      <!-- DESTINO -->
+      <div class="lbl">🏁 DESTINO</div>
+      <div id="dest-sel" class="sel-place" style="background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.2);">
+        <div><div style="font-size:15px;font-weight:600;color:var(--red);" id="dest-name"></div><div style="font-size:10px;color:var(--muted);" id="dest-coords"></div></div>
+        <button class="clear-btn" onclick="clearPlace('dest')">✕</button>
+      </div>
+      <div id="dest-form">
+        <div class="search-row">
+          <input class="search-input" id="dest-in" placeholder="Ej: Bogotá, D.C." onkeydown="if(event.key==='Enter')doSearch('dest')">
+          <button class="search-btn" id="dest-sbtn" onclick="doSearch('dest')">🔍</button>
+        </div>
+        <div class="status-msg" id="dest-status"><div class="spinner-sm"></div><span style="color:var(--muted)">Buscando...</span></div>
+        <div class="err-msg" id="dest-err"></div>
+        <div class="sugs" id="dest-sugs"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lbl">BATERÍA INICIAL</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+        <input type="range" min="10" max="100" step="5" value="80" id="batt-sl" oninput="updBattLabel()">
+        <div class="num" id="batt-v" style="font-size:22px;font-weight:700;color:var(--green);min-width:70px;">80% · 48kWh</div>
+      </div>
+    </div>
+
+    <button class="btn-main btn-off" id="calc-btn" onclick="calcRoute()" disabled>BUSCA SALIDA Y DESTINO</button>
+    <div class="tip">💡 <strong style="color:var(--blue)">Instala la app:</strong> En Chrome toca <strong style="color:var(--text)">⋮ → "Añadir a pantalla de inicio"</strong></div>
+  </div>
+
+  <!-- READY -->
+  <div id="s-ready" class="screen">
+    <div class="map-box" style="height:180px;"><div id="map1" style="width:100%;height:100%;"></div></div>
+    <div style="background:rgba(56,200,240,0.06);border:1px solid rgba(56,200,240,0.15);border-radius:13px;padding:13px 17px;">
+      <div class="lbl">RUTA CALCULADA</div>
+      <div class="num" id="r-label" style="font-size:12px;font-weight:700;color:var(--blue);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+      <div style="display:flex;gap:18px;margin-top:10px;">
+        <div><div style="font-size:9px;color:var(--muted)">DISTANCIA</div><div class="num" id="r-dist" style="font-size:16px;font-weight:700;"></div></div>
+        <div><div style="font-size:9px;color:var(--muted)">TIEMPO</div><div class="num" id="r-dur" style="font-size:16px;font-weight:700;"></div></div>
+        <div><div style="font-size:9px;color:var(--muted)">BATERÍA</div><div class="num" id="r-batt" style="font-size:16px;font-weight:700;color:var(--green);"></div></div>
+        <div><div style="font-size:9px;color:var(--muted)">AL LLEGAR</div><div class="num" id="r-dest-batt" style="font-size:16px;font-weight:700;"></div></div>
+      </div>
+    </div>
+    <div class="card"><div class="lbl" style="margin-bottom:7px;">PERFIL DE ELEVACIÓN</div><canvas id="cv1" style="width:100%;height:100px;display:block;"></canvas></div>
+    <!-- Pre-trip alert -->
+    <div id="pretrip-alert" class="alert-box"></div>
+    <div class="btn2">
+      <button class="btn-half" onclick="startDemo()" style="background:rgba(0,255,157,0.1);border-color:rgba(0,255,157,0.35);color:var(--green);">▶ SIMULAR<span>DEMO sin GPS</span></button>
+      <button class="btn-half" onclick="startGps()" style="background:rgba(56,200,240,0.1);border-color:rgba(56,200,240,0.35);color:var(--blue);">📍 GPS REAL<span>Modo conducción</span></button>
+    </div>
+  </div>
+
+  <!-- DRIVING -->
+  <div id="s-driving" class="screen">
+    <div class="map-box" style="height:155px;"><div id="map2" style="width:100%;height:100%;"></div></div>
+
+    <!-- Recomendación -->
+    <div id="rec-card">
+      <div id="rec-icon" style="font-size:28px;min-width:32px;font-family:'Orbitron';">→</div>
+      <div>
+        <div id="rec-text" style="font-family:'Orbitron';font-size:14px;font-weight:700;color:var(--blue);">RUTA PLANA</div>
+        <div id="rec-sub" style="font-size:11px;color:#7a9ab8;margin-top:2px;">Consumo base normal</div>
+      </div>
+    </div>
+
+    <!-- Alert en tiempo real -->
+    <div id="drive-alert" class="alert-box"></div>
+
+    <!-- Metrics 2x2 -->
+    <div class="metrics">
+      <div class="card"><div class="lbl">PENDIENTE</div><div class="num mv" id="d-slope">+0.0%</div><div class="ms" id="d-slope-s">0.0° inclinación</div></div>
+      <div class="card"><div class="lbl">ALTITUD</div><div class="num mv" id="d-elev" style="color:var(--blue)">0m</div><div class="ms">sobre el nivel del mar</div></div>
+      <div class="card"><div class="lbl">RECORRIDO</div><div class="num mv" id="d-km">0.0km</div><div class="ms" id="d-km-s"></div></div>
+      <div class="card"><div class="lbl">FALTAN</div><div class="num mv" id="d-left">0.0km</div><div class="ms" id="d-left-s"></div></div>
+    </div>
+
+    <!-- Batería -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="lbl" id="batt-lbl-cur">BATERÍA ACTUAL</div>
+          <div class="num" id="d-batt" style="font-size:30px;font-weight:700;color:var(--green);">80%</div>
+          <div id="d-batt-kwh" style="font-size:11px;color:var(--muted);margin-top:1px;">48.0 kWh</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="lbl">AL LLEGAR</div>
+          <div class="num" id="d-bdest" style="font-size:30px;font-weight:700;color:var(--green);">--%</div>
+          <div id="d-bdest-kwh" style="font-size:11px;color:var(--muted);margin-top:1px;">-- kWh</div>
+        </div>
+      </div>
+      <!-- EV single bar -->
+      <div id="ev-bar-wrap">
+        <div id="batt-bar-w"><div id="batt-bar" style="width:80%;background:linear-gradient(90deg,rgba(0,255,157,0.5),var(--green));height:8px;border-radius:4px;transition:width 0.4s,background 0.4s;"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:3px;"><span>0%</span><span id="ev-reserve-mark">▲ reserva</span><span>100%</span></div>
+      </div>
+      <!-- PHEV dual bar -->
+      <div id="phev-bar-wrap" style="display:none;">
+        <div style="font-size:9px;color:var(--muted);margin-bottom:3px;">BATERÍA EV</div>
+        <div class="dual-bar"><div class="dual-bar-fill" id="phev-ev-bar" style="background:linear-gradient(90deg,rgba(0,255,157,0.5),var(--green));width:80%;"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-bottom:6px;"><span>0</span><span id="phev-thresh-lbl">⚡→🔥 20%</span><span>100%</span></div>
+        <div id="phev-mode-badge" style="font-size:11px;font-family:'Orbitron';font-weight:700;padding:5px 10px;border-radius:6px;text-align:center;background:rgba(0,255,157,0.1);border:1px solid rgba(0,255,157,0.3);color:var(--green);">MODO EV PURO ⚡</div>
+      </div>
+    </div>
+
+    <!-- Consumo en tiempo real -->
+    <div class="metrics">
+      <div class="card"><div class="lbl">CONSUMO ACTUAL</div><div class="num mv" id="d-cons" style="color:var(--yellow)">--</div><div class="ms">kWh/100km</div></div>
+      <div class="card"><div class="lbl">PRÓXIMO PICO</div><div class="num mv" id="d-peak" style="color:var(--orange)">--</div><div class="ms" id="d-peak-s">km al punto más alto</div></div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card"><div class="lbl" style="margin-bottom:7px;">PERFIL DE ELEVACIÓN</div><canvas id="cv2" style="width:100%;height:95px;display:block;"></canvas></div>
+
+    <div id="spd-card" class="card" style="text-align:center;display:none;">
+      <div class="lbl">VELOCIDAD GPS</div>
+      <div class="num" id="d-spd" style="font-size:34px;font-weight:700;">0 <span style="font-size:13px;color:var(--muted);">km/h</span></div>
+    </div>
+
+    <button onclick="stopAll()" style="width:100%;padding:11px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Orbitron';font-size:11px;letter-spacing:1px;cursor:pointer;">■ DETENER</button>
+  </div>
+
+  <!-- DONE -->
+  <div id="s-done" class="screen">
+    <div style="background:rgba(0,255,157,0.07);border:1px solid rgba(0,255,157,0.2);border-radius:14px;padding:26px;text-align:center;">
+      <div style="font-size:34px;margin-bottom:8px;">🏁</div>
+      <div class="num" style="font-size:15px;font-weight:700;color:var(--green);letter-spacing:2px;">¡LLEGASTE!</div>
+      <div id="done-route" style="font-size:13px;color:#7a9ab8;margin-top:10px;"></div>
+      <div id="done-batt" style="font-size:13px;color:#7a9ab8;margin-top:4px;"></div>
+      <div id="done-stats" style="margin-top:14px;padding:12px;background:rgba(0,0,0,0.3);border-radius:9px;font-size:12px;color:var(--muted);line-height:1.8;text-align:left;"></div>
+      <button onclick="resetAll()" style="margin-top:16px;background:linear-gradient(135deg,rgba(0,255,157,0.1),rgba(0,255,157,0.18));border:1px solid rgba(0,255,157,0.4);border-radius:10px;padding:12px 26px;color:var(--green);font-family:'Orbitron';font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;">NUEVA RUTA</button>
+    </div>
+  </div>
+</div>
+
+<div id="footer"><span>ElevDrive v2.0</span><span>Nominatim · OSRM · Leaflet</span><span>ADL</span></div>
+</div>
+
+<script>
+// ── Vehicle Profile ───────────────────────
+let veh = {
+  type: 'ev',       // 'ev' | 'phev'
+  cap: 60,          // kWh total battery
+  cons: 18,         // kWh/100km average consumption
+  minPct: 15,       // % minimum reserve
+  regenMax: 8,      // kWh max regen charge (PHEV)
+  hCons: 6,         // kWh/100km in hybrid mode (PHEV)
+  hThresh: 20,      // % below which hybrid mode kicks in (PHEV)
+};
+
+function openVehModal(){ document.getElementById('veh-modal').classList.add('open'); syncVehForm(); }
+function closeVehModal(){ document.getElementById('veh-modal').classList.remove('open'); }
+function setVehType(t){
+  veh.type=t;
+  document.getElementById('btn-ev').classList.toggle('sel',t==='ev');
+  document.getElementById('btn-phev').classList.toggle('sel',t==='phev');
+  document.getElementById('phev-section').classList.toggle('show',t==='phev');
+}
+function syncVehForm(){
+  document.getElementById('f-cap').value=veh.cap;
+  document.getElementById('f-cons').value=veh.cons;
+  document.getElementById('f-min').value=veh.minPct;
+  document.getElementById('f-regen').value=veh.regenMax;
+  document.getElementById('f-hcons').value=veh.hCons;
+  document.getElementById('f-hthresh').value=veh.hThresh;
+  setVehType(veh.type);
+}
+function saveVehicle(){
+  veh.type=document.getElementById('btn-ev').classList.contains('sel')?'ev':'phev';
+  veh.cap=parseFloat(document.getElementById('f-cap').value)||60;
+  veh.cons=parseFloat(document.getElementById('f-cons').value)||18;
+  veh.minPct=parseFloat(document.getElementById('f-min').value)||15;
+  veh.regenMax=parseFloat(document.getElementById('f-regen').value)||8;
+  veh.hCons=parseFloat(document.getElementById('f-hcons').value)||6;
+  veh.hThresh=parseFloat(document.getElementById('f-hthresh').value)||20;
+  updateVehBadge();
+  const s=document.getElementById('veh-saved'); s.style.display='block';
+  setTimeout(()=>{s.style.display='none';closeVehModal();},1200);
+  updBattLabel();
+}
+function updateVehBadge(){
+  const t=veh.type==='ev'?'⚡ EV':'🔋 PHEV';
+  document.getElementById('veh-desc').textContent=`${t} · ${veh.cap}kWh · ${veh.cons}kWh/100km`;
+  document.getElementById('veh-btn').textContent=`🚗 ${veh.type.toUpperCase()}`;
+}
+function updBattLabel(){
+  const pct=parseInt(document.getElementById('batt-sl').value);
+  const kwh=((pct/100)*veh.cap).toFixed(1);
+  document.getElementById('batt-v').textContent=`${pct}% · ${kwh}kWh`;
+}
+
+// ── Energy Model ──────────────────────────
+// Returns kWh consumed per km at given slope and speed
+function kwhPerKm(sl, spd){
+  // Base consumption adjusted for slope
+  let base = veh.cons/100; // kWh/km at flat
+  // Slope factor: steep uphill = 2.5x, flat = 1x, downhill = 0.3x (regen)
+  let slopeFactor;
+  if(sl>12)      slopeFactor=2.8;
+  else if(sl>7)  slopeFactor=2.2;
+  else if(sl>3)  slopeFactor=1.6;
+  else if(sl>-2) slopeFactor=1.0;
+  else if(sl>-5) slopeFactor=0.3;  // slight regen
+  else if(sl>-9) slopeFactor=-0.2; // regen
+  else           slopeFactor=-0.5; // strong regen
+  // Speed factor (higher speed = more consumption)
+  const speedFactor = spd>0 ? Math.max(0.7, Math.min(1.8, 0.7+(spd-60)*0.011)) : 1.0;
+  return base * slopeFactor * (sl>0?speedFactor:1.0);
+}
+
+// Project battery from curKm to destKm, returns final % and alerts
+function projectEnergy(fromKm, fromBattPct, toKm, spd){
+  let battKwh = (fromBattPct/100)*veh.cap;
+  const minKwh = (veh.minPct/100)*veh.cap;
+  const step=0.4;
+  let reachedMin=null, inHybrid=false, hybridStartKm=null;
+  let totalRegen=0, totalConsumed=0;
+  for(let k=fromKm;k<toKm;k+=step){
+    const sl=slopeAt(k);
+    const delta=kwhPerKm(sl,spd)*step;
+    // PHEV: switch to hybrid below threshold
+    if(veh.type==='phev' && !inHybrid && battKwh/veh.cap*100<=veh.hThresh){
+      inHybrid=true; hybridStartKm=k;
+    }
+    let effDelta=delta;
+    if(inHybrid && veh.type==='phev') effDelta=delta*(veh.hCons/veh.cons);
+    // Regen cap for PHEV
+    if(delta<0 && veh.type==='phev'){
+      const regenAvail=Math.min(Math.abs(delta)*step, (veh.regenMax-totalRegen));
+      effDelta = regenAvail>0 ? -regenAvail : 0;
+      totalRegen+=regenAvail;
+    }
+    if(delta>0) totalConsumed+=delta;
+    battKwh=Math.max(0,Math.min(veh.cap, battKwh-effDelta));
+    if(battKwh<=minKwh && reachedMin===null) reachedMin=k;
+  }
+  return{
+    finalPct: Math.round(battKwh/veh.cap*100),
+    finalKwh: +battKwh.toFixed(1),
+    reachedMinAt: reachedMin,
+    inHybridFrom: hybridStartKm,
+    totalConsumed: +totalConsumed.toFixed(1),
+    totalRegen: +totalRegen.toFixed(1),
+  };
+}
+
+// Find next local peak ahead of current km
+function nextPeak(fromKm){
+  let maxE=lerpE(fromKm), maxKm=fromKm;
+  const lookAhead=Math.min(totalKm, fromKm+30);
+  for(let k=fromKm;k<lookAhead;k+=0.5){
+    const e=lerpE(k);
+    if(e>maxE){maxE=e;maxKm=k;}
+  }
+  if(maxKm>fromKm+1) return{km:maxKm,elev:Math.round(maxE)};
+  return null;
+}
+
+// ── Recommendation ────────────────────────
+function getRec(sl){
+  if(sl<-8) return{text:'REGENERAR',sub:'Pendiente fuerte — recarga máxima',color:'#00ff9d',glow:'0 0 18px #00ff9d55',icon:'↘↘',bg:'rgba(0,255,157,0.10)'};
+  if(sl<-3) return{text:'REGENERAR',sub:'Buena pendiente — activa freno regen',color:'#00ff9d',glow:'0 0 13px #00ff9d44',icon:'↘',bg:'rgba(0,255,157,0.07)'};
+  if(sl<2)  return{text:'RUTA PLANA',sub:'Consumo base normal',color:'#38c8f0',glow:'0 0 9px #38c8f033',icon:'→',bg:'rgba(56,200,240,0.06)'};
+  if(sl<6)  return{text:'SUBIENDO',sub:'Mayor consumo — modera la velocidad',color:'#fbbf24',glow:'0 0 13px #fbbf2444',icon:'↗',bg:'rgba(251,191,36,0.08)'};
+  return{text:'SUBIDA FUERTE',sub:'Alto consumo — reduce velocidad ya',color:'#f87171',glow:'0 0 16px #f8717155',icon:'↗↗',bg:'rgba(248,113,113,0.10)'};
+}
+
+// ── Generate driving alert ────────────────
+function generateAlert(fromKm, battPct, spd){
+  const proj=projectEnergy(fromKm,battPct,totalKm,spd);
+  const minKwh=(veh.minPct/100)*veh.cap;
+  const curKwh=(battPct/100)*veh.cap;
+  const peak=nextPeak(fromKm);
+  let alerts=[];
+
+  // PHEV specific
+  if(veh.type==='phev'){
+    if(battPct<=veh.hThresh+5 && battPct>veh.hThresh){
+      alerts.push({level:'warn',msg:`⚡→🔥 Batería cerca del umbral EV (${veh.hThresh}%). El motor de gasolina tomará el control pronto.`});
+    }
+    if(battPct<=veh.hThresh){
+      alerts.push({level:'warn',msg:`🔥 MODO HÍBRIDO ACTIVO. Motor gasolina en control. Reserva EV conservada al ${battPct.toFixed(0)}%.`});
+    }
+    const regenPct=(veh.regenMax/veh.cap)*100;
+    if(slopeAt(fromKm)<-3 && battPct>100-regenPct){
+      alerts.push({level:'ok',msg:`↘ Regen disponible — baja a modo B/L para maximizar recuperación (hasta ${veh.regenMax}kWh).`});
+    }
+  }
+
+  // Universal: won't make it to next peak
+  if(peak && peak.km>fromKm+2){
+    const projToPeak=projectEnergy(fromKm,battPct,peak.km,spd);
+    if(projToPeak.finalPct<=veh.minPct+5){
+      alerts.push({level:'danger',msg:`⚠ ALERTA: Con el consumo actual posiblemente no llegas al pico ${peak.elev}m (en ${(peak.km-fromKm).toFixed(1)}km) con reserva segura. Reduce velocidad.`});
+    }
+  }
+
+  // Won't make it to destination
+  if(proj.finalPct<veh.minPct){
+    alerts.push({level:'danger',msg:`🔴 NO LLEGAS: Proyección indica batería crítica antes del destino. Busca punto de carga o reduce velocidad significativamente.`});
+  } else if(proj.finalPct<veh.minPct+10){
+    alerts.push({level:'warn',msg:`🟡 MARGEN JUSTO: Llegarías con ${proj.finalPct}% (${proj.finalKwh}kWh). Recomendado: reduce velocidad y activa regeneración en bajadas.`});
+  }
+
+  // Good regen opportunity ahead
+  if(slopeAt(fromKm)<-5 && battPct<90){
+    alerts.push({level:'ok',msg:`↘↘ Gran pendiente — aprovecha al máximo el freno regenerativo ahora.`});
+  }
+  return alerts.length?alerts[0]:null;
+}
+
+// ── Route state ───────────────────────────
+let orig=null,dest=null;
+let routePts=[],totalKm=0,routeDur='';
+let curKm=0,battPct=80,sBatt=80,curSpd=72;
+let routeCoords=[];
+let map1=null,map2=null,car1=null,car2=null,poly1=null,poly2=null;
+let demoT=null,gpsW=null,lastGps=null;
+let tripConsumed=0,tripRegen=0;
+
+function lerpE(km){
+  if(!routePts.length)return 0;
+  const k=Math.max(0,Math.min(km,totalKm));
+  for(let i=0;i<routePts.length-1;i++){const a=routePts[i],b=routePts[i+1];if(k>=a.km&&k<=b.km)return a.e+((k-a.km)/(b.km-a.km))*(b.e-a.e);}
+  return routePts[routePts.length-1].e;
+}
+function slopeAt(km){
+  const w=Math.max(0.4,totalKm*0.012);
+  const e1=lerpE(Math.max(0,km-w)),e2=lerpE(Math.min(totalKm,km+w));
+  const d=(Math.min(totalKm,km+w)-Math.max(0,km-w))*1000;
+  return d>0?((e2-e1)/d)*100:0;
+}
+function hvKm(a,b,c,d){const R=6371,r=Math.PI/180,dLa=(c-a)*r,dLo=(d-b)*r,x=Math.sin(dLa/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+function sample(arr,n){if(arr.length<=n)return arr;return Array.from({length:n},(_,i)=>arr[Math.round(i*(arr.length-1)/(n-1))]);}
+
+// ── Screens ───────────────────────────────
+function show(name){
+  ['setup','ready','driving','done'].forEach(s=>document.getElementById('s-'+s).classList.remove('on'));
+  document.getElementById('loading-wrap').style.display='none';
+  if(name==='loading'){document.getElementById('loading-wrap').style.display='flex';}
+  else{const el=document.getElementById('s-'+name);el.classList.add('on');el.classList.add('fade');setTimeout(()=>el.classList.remove('fade'),400);}
+  document.getElementById('back-btn').style.display=(name==='setup'||name==='loading')?'none':'block';
+  document.getElementById('progress-bar').style.display=name==='driving'?'block':'none';
+  document.getElementById('veh-btn').style.display=name==='driving'?'none':'block';
+  setErr('');
+}
+function setLoad(m){document.getElementById('load-msg').textContent=m;show('loading');}
+function setErr(m){const e=document.getElementById('err-box');e.style.display=m?'block':'none';e.textContent=m?'⚠ '+m:'';}
+
+// ── Search ────────────────────────────────
+async function doSearch(which){
+  const inEl=document.getElementById(which+'-in');
+  const q=inEl.value.trim(); if(q.length<2)return;
+  const btn=document.getElementById(which+'-sbtn');
+  const sugs=document.getElementById(which+'-sugs');
+  const err=document.getElementById(which+'-err');
+  const sta=document.getElementById(which+'-status');
+  btn.disabled=true;
+  btn.innerHTML='<div style="width:14px;height:14px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;"></div>';
+  sugs.style.display='none'; err.style.display='none'; sta.style.display='flex';
+  try{
+    const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+' Colombia')}&format=json&limit=6&countrycodes=co&addressdetails=1&accept-language=es`;
+    const res=await fetch(url,{headers:{'Accept-Language':'es','User-Agent':'ElevDrive/2.0'}});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(!data.length){err.textContent='Sin resultados. Prueba añadiendo el departamento.';err.style.display='block';}
+    else renderSugs(which,data,sugs);
+  }catch(e){err.textContent='Error: '+e.message;err.style.display='block';}
+  sta.style.display='none'; btn.disabled=false; btn.innerHTML='🔍';
+}
+function renderSugs(which,data,container){
+  container.innerHTML='';
+  data.slice(0,5).forEach(r=>{
+    const name=r.display_name.split(',').slice(0,2).join(',').trim();
+    const region=r.display_name.split(',').slice(2,4).join(',').trim();
+    const div=document.createElement('div'); div.className='sug-item';
+    div.innerHTML=`<div>📍 ${name}</div><div class="sug-region">${region}</div>`;
+    div.onclick=()=>selectPlace(which,{name,lat:parseFloat(r.lat),lng:parseFloat(r.lon)});
+    container.appendChild(div);
+  });
+  container.style.display='block';
+}
+function selectPlace(which,place){
+  if(which==='orig'){
+    orig=place;
+    document.getElementById('orig-form').style.display='none';
+    document.getElementById('orig-sel').style.display='flex';
+    document.getElementById('orig-name').textContent=place.name;
+    document.getElementById('orig-coords').textContent=`${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}`;
+    document.getElementById('orig-sugs').style.display='none';
+  }else{
+    dest=place;
+    document.getElementById('dest-form').style.display='none';
+    document.getElementById('dest-sel').style.display='flex';
+    document.getElementById('dest-name').textContent=place.name;
+    document.getElementById('dest-coords').textContent=`${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}`;
+    document.getElementById('dest-sugs').style.display='none';
+  }
+  updBtn();
+}
+function clearPlace(which){
+  if(which==='orig'){orig=null;document.getElementById('orig-form').style.display='block';document.getElementById('orig-sel').style.display='none';document.getElementById('orig-in').value='';}
+  else{dest=null;document.getElementById('dest-form').style.display='block';document.getElementById('dest-sel').style.display='none';document.getElementById('dest-in').value='';}
+  updBtn();
+}
+function updBtn(){
+  const b=document.getElementById('calc-btn');
+  if(orig&&dest){b.disabled=false;b.className='btn-main btn-on';b.textContent='CALCULAR RUTA ↗';}
+  else{b.disabled=true;b.className='btn-main btn-off';b.textContent='BUSCA SALIDA Y DESTINO';}
+}
+
+// ── OSRM + Elevation ─────────────────────
+function fetchWithTimeout(url, opts={}, ms=12000){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(),ms);
+  return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(t));
+}
+
+async function fetchRoute(oLa,oLo,dLa,dLo){
+  // Try primary OSRM server first, fallback to secondary
+  const servers=[
+    `https://router.project-osrm.org/route/v1/driving/${oLo},${oLa};${dLo},${dLa}?overview=full&geometries=geojson`,
+    `https://routing.openstreetmap.de/routed-car/route/v1/driving/${oLo},${oLa};${dLo},${dLa}?overview=full&geometries=geojson`
+  ];
+  let lastErr;
+  for(const url of servers){
+    try{
+      const r=await fetchWithTimeout(url,{},12000);
+      const d=await r.json();
+      if(d.code==='Ok'){
+        const rt=d.routes[0],sec=rt.duration;
+        return{coords:rt.geometry.coordinates.map(c=>[c[1],c[0]]),distKm:rt.distance/1000,
+          dur:sec>3600?`${Math.floor(sec/3600)}h ${Math.floor((sec%3600)/60)}min`:`${Math.floor(sec/60)} min`};
+      }
+      lastErr=new Error('Ruta no encontrada: '+d.message);
+    }catch(e){lastErr=e;}
+  }
+  throw lastErr||new Error('No se pudo calcular la ruta. Verifica tu conexión.');
+}
+
+async function fetchElev(pts){
+  const GMAP_KEY="AIzaSyAhX2wXcFHcKcjj-FphB-cGp14otz_TiVw";
+  // Try Google first (fast), then Open-Elevation (slower but reliable)
+  try{
+    const locs=pts.map(p=>`${p[0].toFixed(5)},${p[1].toFixed(5)}`).join('|');
+    const r=await fetchWithTimeout(`https://maps.googleapis.com/maps/api/elevation/json?locations=${locs}&key=${GMAP_KEY}`,{},10000);
+    const d=await r.json();
+    if(d.status==='OK')return d.results.map(x=>x.elevation);
+    throw new Error(d.status);
+  }catch{
+    try{
+      const r2=await fetchWithTimeout('https://api.open-elevation.com/api/v1/lookup',
+        {method:'POST',headers:{'Content-Type':'application/json'},
+         body:JSON.stringify({locations:pts.map(p=>({latitude:p[0],longitude:p[1]}))})},20000);
+      const d2=await r2.json();
+      return d2.results.map(x=>x.elevation);
+    }catch{
+      // Last resort: return approximate elevation from linear interpolation based on Colombia avg
+      console.warn('Elevation APIs failed, using fallback');
+      return pts.map(()=>1500+Math.random()*500);
+    }
+  }
+}
+
+async function calcRoute(){
+  if(!orig||!dest)return;
+  setLoad('Calculando ruta...');
+  // Add cancel button while loading
+  document.getElementById('load-msg').innerHTML='CALCULANDO RUTA...<br><button onclick="resetAll()" style="margin-top:14px;padding:8px 18px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#f87171;font-family:Orbitron;font-size:10px;cursor:pointer;">✕ CANCELAR</button>';
+  try{
+    const{coords,distKm,dur}=await fetchRoute(orig.lat,orig.lng,dest.lat,dest.lng);
+    routeCoords=coords;
+    setLoad('Obteniendo altitudes de la ruta...');
+    document.getElementById('load-msg').textContent='OBTENIENDO ALTITUDES...';
+    const s=sample(coords,80); const elevs=await fetchElev(s);
+    let cum=0;
+    routePts=s.map((p,i)=>{if(i>0)cum+=hvKm(s[i-1][0],s[i-1][1],p[0],p[1]);return{km:+cum.toFixed(2),e:Math.round(elevs[i]??0),lat:p[0],lng:p[1]};});
+    totalKm=distKm; routeDur=dur;
+    sBatt=parseInt(document.getElementById('batt-sl').value); curKm=0; battPct=sBatt;
+    // Pre-trip projection
+    const proj=projectEnergy(0,sBatt,totalKm,72);
+    document.getElementById('r-label').textContent=`${orig.name} → ${dest.name}`;
+    document.getElementById('r-dist').textContent=`${distKm.toFixed(1)} km`;
+    document.getElementById('r-dur').textContent=dur;
+    document.getElementById('r-batt').textContent=`${sBatt}%`;
+    const dColor=proj.finalPct>30?'var(--green)':proj.finalPct>15?'var(--yellow)':'var(--red)';
+    document.getElementById('r-dest-batt').textContent=`${proj.finalPct}%`;
+    document.getElementById('r-dest-batt').style.color=dColor;
+    document.getElementById('d-left-s').textContent=dest.name;
+    document.getElementById('d-km-s').textContent=`de ${totalKm.toFixed(1)} km`;
+    // Pre-trip alert
+    const alert=generateAlert(0,sBatt,72);
+    showAlertBox('pretrip-alert',alert);
+    show('ready');
+    setTimeout(()=>{initMap(1);drawChart('cv1',false);},250);
+  }catch(e){setErr(e.message||'Error de conexión');show('setup');}
+}
+
+function showAlertBox(id,alert){
+  const el=document.getElementById(id);
+  if(!alert){el.style.display='none';return;}
+  el.className='alert-box alert-'+alert.level;
+  el.textContent=alert.msg;
+  el.style.display='block';
+}
+
+// ── Maps ──────────────────────────────────
+function initMap(n){
+  const id='map'+n,existing=n===1?map1:map2;
+  if(existing){try{existing.invalidateSize();}catch(e){}drawRoute(n);return;}
+  const L=window.L;
+  const m=L.map(id,{center:[4.65,-74.1],zoom:9,zoomControl:false,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:19}).addTo(m);
+  if(n===1)map1=m;else map2=m;
+  setTimeout(()=>drawRoute(n),130);
+}
+function drawRoute(n){
+  const m=n===1?map1:map2; if(!m||!routeCoords.length)return;
+  const L=window.L,oldP=n===1?poly1:poly2;
+  if(oldP)try{oldP.remove();}catch(e){}
+  const p=L.polyline(routeCoords,{color:'#38c8f0',weight:3.5,opacity:0.9}).addTo(m);
+  if(n===1)poly1=p;else poly2=p;
+  m.fitBounds(p.getBounds(),{padding:[22,22]});
+  const dot=(ll,c)=>L.circleMarker(ll,{radius:6,fillColor:c,fillOpacity:1,color:'#fff',weight:2}).addTo(m);
+  dot(routeCoords[0],'#00ff9d'); dot(routeCoords[routeCoords.length-1],'#f87171');
+  const ic=L.divIcon({html:`<div style="width:14px;height:14px;background:#fbbf24;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 8px #fbbf2488;"></div>`,className:'',iconSize:[14,14],iconAnchor:[7,7]});
+  const oldC=n===1?car1:car2; if(oldC)try{oldC.remove();}catch(e){}
+  const cm=L.marker(routeCoords[0],{icon:ic,zIndexOffset:1000}).addTo(m);
+  if(n===1)car1=cm;else car2=cm;
+}
+function moveCar(){
+  if(!car2||!routePts.length)return;
+  const pt=routePts.reduce((a,b)=>Math.abs(b.km-curKm)<Math.abs(a.km-curKm)?b:a);
+  if(pt?.lat)try{car2.setLatLng([pt.lat,pt.lng]);}catch(e){}
+}
+
+// ── Canvas Chart ──────────────────────────
+function drawChart(id,showPos){
+  const cv=document.getElementById(id); if(!cv||!routePts.length)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=cv.offsetWidth||cv.parentElement.offsetWidth||300, H=cv.offsetHeight||100;
+  cv.width=W*dpr; cv.height=H*dpr;
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  const minE=Math.min(...routePts.map(p=>p.e))-60, maxE=Math.max(...routePts.map(p=>p.e))+60;
+  const toX=km=>W*0.07+(km/totalKm)*(W*0.87);
+  const toY=e=>H-10-((e-minE)/(maxE-minE))*(H-24);
+  ctx.strokeStyle='#1a2a3a'; ctx.lineWidth=0.5;
+  for(let i=0;i<=3;i++){const y=H-10-((H-24)/3)*i;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'rgba(56,200,240,0.28)'); g.addColorStop(1,'rgba(56,200,240,0.02)');
+  ctx.beginPath(); ctx.moveTo(toX(routePts[0].km),toY(routePts[0].e));
+  routePts.forEach(p=>ctx.lineTo(toX(p.km),toY(p.e)));
+  ctx.lineTo(toX(routePts[routePts.length-1].km),H); ctx.lineTo(toX(routePts[0].km),H); ctx.closePath();
+  ctx.fillStyle=g; ctx.fill();
+  ctx.beginPath(); ctx.strokeStyle='#38c8f0'; ctx.lineWidth=2;
+  routePts.forEach((p,i)=>i===0?ctx.moveTo(toX(p.km),toY(p.e)):ctx.lineTo(toX(p.km),toY(p.e)));
+  ctx.stroke();
+  if(showPos&&curKm>0){
+    const x=toX(curKm),y=toY(lerpE(curKm));
+    ctx.strokeStyle='#00ff9d'; ctx.lineWidth=1.5; ctx.setLineDash([4,2]);
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#00ff9d'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle='#2a4a6a'; ctx.font='9px Orbitron,monospace'; ctx.textAlign='center';
+  [0,0.25,0.5,0.75,1].forEach(t=>ctx.fillText(`${(t*totalKm).toFixed(0)}k`,toX(t*totalKm),H-1));
+  ctx.textAlign='right';
+  const mid=Math.round((minE+maxE)/2);
+  [Math.round(minE+60),mid,Math.round(maxE-60)].forEach(e=>ctx.fillText(`${e}m`,W*0.07-3,toY(e)+3));
+}
+
+// ── Update Driving UI ─────────────────────
+let alertCooldown=0;
+function updateUI(){
+  const sl=slopeAt(curKm), e=Math.round(lerpE(curKm)), left=Math.max(0,totalKm-curKm);
+  const rec=getRec(sl);
+  const battKwh=+(battPct/100*veh.cap).toFixed(1);
+  const minPct=veh.minPct;
+  const bc=battPct>minPct+20?'#00ff9d':battPct>minPct+5?'#fbbf24':'#f87171';
+  const proj=projectEnergy(curKm,battPct,totalKm,curSpd);
+  const bdc=proj.finalPct>minPct+10?'#00ff9d':proj.finalPct>minPct?'#fbbf24':'#f87171';
+  const consNow=+(kwhPerKm(sl,curSpd)*100).toFixed(1);
+  const peak=nextPeak(curKm);
+  const isHybrid=veh.type==='phev'&&battPct<=veh.hThresh;
+
+  // Rec card
+  const rc=document.getElementById('rec-card');
+  rc.style.background=rec.bg; rc.style.border=`1px solid ${rec.color}33`; rc.style.boxShadow=rec.glow;
+  document.getElementById('rec-icon').textContent=rec.icon; document.getElementById('rec-icon').style.color=rec.color;
+  document.getElementById('rec-text').textContent=rec.text; document.getElementById('rec-text').style.color=rec.color;
+  document.getElementById('rec-sub').textContent=rec.sub;
+
+  // Metrics
+  document.getElementById('d-slope').textContent=(sl>=0?'+':'')+sl.toFixed(1)+'%';
+  document.getElementById('d-slope').style.color=sl<-3?'#00ff9d':sl>5?'#f87171':'#e2e8f0';
+  document.getElementById('d-slope-s').textContent=(Math.atan(sl/100)*180/Math.PI).toFixed(1)+'° inclinación';
+  document.getElementById('d-elev').textContent=e+'m';
+  document.getElementById('d-km').textContent=curKm.toFixed(1)+'km';
+  document.getElementById('d-left').textContent=left.toFixed(1)+'km';
+  document.getElementById('d-cons').textContent=consNow>0?consNow.toFixed(1):'↺ regen';
+  document.getElementById('d-cons').style.color=consNow>veh.cons/100*1.5*100?'var(--red)':consNow<0?'var(--green)':'var(--yellow)';
+  document.getElementById('d-peak').textContent=peak?`${(peak.km-curKm).toFixed(1)}km`:'—';
+  document.getElementById('d-peak-s').textContent=peak?`hasta ${peak.elev}m snm`:'No hay pico adelante';
+
+  // Battery display
+  document.getElementById('d-batt').textContent=battPct.toFixed(0)+'%';
+  document.getElementById('d-batt').style.color=bc;
+  document.getElementById('d-batt-kwh').textContent=battKwh+' kWh';
+  document.getElementById('d-bdest').textContent=proj.finalPct+'%';
+  document.getElementById('d-bdest').style.color=bdc;
+  document.getElementById('d-bdest-kwh').textContent=proj.finalKwh+' kWh restante';
+
+  if(veh.type==='ev'){
+    document.getElementById('ev-bar-wrap').style.display='block';
+    document.getElementById('phev-bar-wrap').style.display='none';
+    document.getElementById('batt-bar').style.width=battPct+'%';
+    document.getElementById('batt-bar').style.background=`linear-gradient(90deg,${bc}88,${bc})`;
+    document.getElementById('ev-reserve-mark').textContent=`▲ reserva ${minPct}%`;
+  }else{
+    document.getElementById('ev-bar-wrap').style.display='none';
+    document.getElementById('phev-bar-wrap').style.display='block';
+    document.getElementById('phev-ev-bar').style.width=battPct+'%';
+    document.getElementById('phev-ev-bar').style.background=`linear-gradient(90deg,${bc}88,${bc})`;
+    document.getElementById('phev-thresh-lbl').textContent=`⚡→🔥 ${veh.hThresh}%`;
+    const badge=document.getElementById('phev-mode-badge');
+    if(isHybrid){
+      badge.textContent='MODO HÍBRIDO 🔥 Motor gasolina activo';
+      badge.style.background='rgba(251,191,36,0.1)'; badge.style.borderColor='rgba(251,191,36,0.4)'; badge.style.color='var(--yellow)';
+    }else{
+      badge.textContent='MODO EV PURO ⚡';
+      badge.style.background='rgba(0,255,157,0.1)'; badge.style.borderColor='rgba(0,255,157,0.3)'; badge.style.color='var(--green)';
+    }
+  }
+
+  // Alert (throttled every 5 steps)
+  alertCooldown++;
+  if(alertCooldown>=5){
+    alertCooldown=0;
+    const alert=generateAlert(curKm,battPct,curSpd);
+    showAlertBox('drive-alert',alert);
+  }
+
+  // Progress
+  document.getElementById('progress-fill').style.width=`${(curKm/totalKm)*100}%`;
+  drawChart('cv2',true); moveCar();
+}
+
+// ── Demo ──────────────────────────────────
+function startDemo(){
+  sBatt=parseInt(document.getElementById('batt-sl').value);
+  curKm=0; battPct=sBatt; curSpd=72; tripConsumed=0; tripRegen=0;
+  show('driving'); document.getElementById('spd-card').style.display='none';
+  setTimeout(()=>{initMap(2);updateUI();},250);
+  demoT=setInterval(()=>{
+    curKm=Math.min(curKm+0.28,totalKm);
+    const sl=slopeAt(curKm);
+    const delta=kwhPerKm(sl,curSpd)*0.28;
+    const isH=veh.type==='phev'&&battPct<=veh.hThresh;
+    let effDelta=isH?delta*(veh.hCons/veh.cons):delta;
+    if(delta<0&&veh.type==='phev')effDelta=Math.max(delta,-veh.regenMax/veh.cap);
+    const newKwh=Math.max((veh.minPct/100)*veh.cap*(isH?0.5:1),Math.min(veh.cap,(battPct/100*veh.cap)-effDelta));
+    if(delta>0)tripConsumed+=delta;else tripRegen+=Math.abs(delta);
+    battPct=+(newKwh/veh.cap*100).toFixed(1);
+    updateUI();
+    if(curKm>=totalKm){clearInterval(demoT);finishRoute();}
+  },220);
+}
+
+// ── GPS ───────────────────────────────────
+function startGps(){
+  if(!navigator.geolocation){alert('GPS no disponible');return;}
+  sBatt=parseInt(document.getElementById('batt-sl').value);
+  curKm=0; battPct=sBatt; curSpd=0; lastGps=null; tripConsumed=0; tripRegen=0;
+  show('driving'); document.getElementById('spd-card').style.display='block';
+  setTimeout(()=>{initMap(2);updateUI();},250);
+  gpsW=navigator.geolocation.watchPosition(pos=>{
+    curSpd=pos.coords.speed!=null?+(pos.coords.speed*3.6).toFixed(0):curSpd;
+    document.getElementById('d-spd').innerHTML=`${curSpd} <span style="font-size:13px;color:var(--muted);">km/h</span>`;
+    if(lastGps){
+      const d=hvKm(lastGps.lat,lastGps.lng,pos.coords.latitude,pos.coords.longitude);
+      if(d>0.008){
+        curKm=Math.min(curKm+d,totalKm);
+        const sl=slopeAt(curKm), delta=kwhPerKm(sl,curSpd)*d;
+        const isH=veh.type==='phev'&&battPct<=veh.hThresh;
+        let effDelta=isH?delta*(veh.hCons/veh.cons):delta;
+        if(delta<0&&veh.type==='phev')effDelta=Math.max(delta,-veh.regenMax/veh.cap*d);
+        const newKwh=Math.max((veh.minPct/100)*veh.cap*(isH?0.5:1),Math.min(veh.cap,(battPct/100*veh.cap)-effDelta));
+        if(delta>0)tripConsumed+=delta;else tripRegen+=Math.abs(delta);
+        battPct=+(newKwh/veh.cap*100).toFixed(1);
+        updateUI();
+      }
+    }
+    lastGps={lat:pos.coords.latitude,lng:pos.coords.longitude};
+  },err=>alert('GPS: '+err.message),{enableHighAccuracy:true,maximumAge:1500,timeout:10000});
+}
+
+function stopAll(){
+  clearInterval(demoT); if(gpsW!=null)navigator.geolocation.clearWatch(gpsW);
+  curKm=0; battPct=sBatt; show('ready');
+}
+
+function finishRoute(){
+  const bc=battPct>50?'#00ff9d':battPct>25?'#fbbf24':'#f87171';
+  document.getElementById('done-route').innerHTML=`${orig.name} → <strong style="color:#e2e8f0">${dest.name}</strong>`;
+  document.getElementById('done-batt').innerHTML=`Batería final: <span style="color:${bc};font-weight:600">${battPct.toFixed(0)}% · ${(battPct/100*veh.cap).toFixed(1)}kWh</span>`;
+  document.getElementById('done-stats').innerHTML=
+    `🔋 Consumido: <strong style="color:var(--text)">${tripConsumed.toFixed(1)} kWh</strong><br>`+
+    `↘ Regenerado: <strong style="color:var(--green)">${tripRegen.toFixed(1)} kWh</strong><br>`+
+    `📏 Distancia: <strong style="color:var(--text)">${totalKm.toFixed(1)} km</strong><br>`+
+    `⚡ Eficiencia: <strong style="color:var(--text)">${(tripConsumed/totalKm*100).toFixed(1)} kWh/100km</strong>`;
+  show('done');
+}
+
+function resetAll(){
+  clearInterval(demoT); if(gpsW!=null)navigator.geolocation.clearWatch(gpsW);
+  orig=null; dest=null; routePts=[]; totalKm=0; routeCoords=[]; curKm=0; battPct=80;
+  clearPlace('orig'); clearPlace('dest');
+  [map1,map2].forEach(m=>{if(m)try{m.remove();}catch(e){}});
+  map1=null;map2=null;poly1=null;poly2=null;car1=null;car2=null;
+  show('setup');
+}
+
+
+
+// ── GPS as Origin ─────────────────────────
+async function useGpsAsOrigin() {
+  if (!navigator.geolocation) {
+    document.getElementById('orig-err').textContent = 'GPS no disponible en este navegador';
+    document.getElementById('orig-err').style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('gps-orig-btn');
+  const sta = document.getElementById('orig-status');
+  const statusTxt = document.getElementById('orig-status-text');
+  const err = document.getElementById('orig-err');
+  btn.style.opacity = '0.5'; btn.disabled = true;
+  sta.style.display = 'flex'; statusTxt.textContent = 'Obteniendo tu ubicación...';
+  err.style.display = 'none';
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 })
+    );
+    const lat = pos.coords.latitude, lng = pos.coords.longitude;
+    statusTxt.textContent = 'Identificando tu ubicación...';
+    // Reverse geocode with Nominatim
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=es`,
+      { headers: { 'User-Agent': 'ElevDrive/2.0' } }
+    );
+    const data = await res.json();
+    const parts = data.display_name ? data.display_name.split(',') : [];
+    const name = parts.slice(0, 2).join(',').trim() || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    selectPlace('orig', { name, lat, lng, fromGps: true });
+    document.getElementById('orig-gps-badge').style.display = 'inline-block';
+  } catch (e) {
+    err.textContent = e.code === 1
+      ? 'Permiso de ubicación denegado. Actívalo en Configuración → Chrome → Ubicación.'
+      : 'No se pudo obtener la ubicación. Verifica que el GPS esté activo.';
+    err.style.display = 'block';
+  }
+  sta.style.display = 'none';
+  btn.style.opacity = '1'; btn.disabled = false;
+}
+
+// ── Tooltip data ──────────────────────────
+const TIPS = {
+  cap: {
+    tag: 'EV y PHEV', tagClass: 'tip-tag-both',
+    title: 'Capacidad Total de Batería (kWh)',
+    desc: 'Es la energía máxima que puede almacenar la batería de tu vehículo. Determina cuántos kilómetros puedes recorrer antes de necesitar cargar.',
+    example: '🔋 Ejemplos reales:<br>• BYD Song Plus PHEV → <strong>8.3 kWh</strong> (batería EV)<br>• BYD Atto 3 → <strong>60.5 kWh</strong><br>• Chevrolet Bolt → <strong>65 kWh</strong><br>• Tesla Model 3 LR → <strong>82 kWh</strong>',
+    where: '📍 <strong>Dónde encontrarlo:</strong> Manual del vehículo (sección especificaciones técnicas), ficha técnica del fabricante, o busca en Google: <strong>"[tu modelo] battery kWh specs"</strong>'
+  },
+  cons: {
+    tag: 'EV y PHEV', tagClass: 'tip-tag-both',
+    title: 'Consumo Promedio (kWh/100km)',
+    desc: 'Cuánta energía gasta tu carro por cada 100 km recorridos en condiciones normales. Varía según velocidad, pendiente y climatización. ElevDrive ajusta este valor en tiempo real según la pendiente del camino.',
+    example: '⚡ Valores típicos:<br>• Ciudad (tráfico): <strong>20–25 kWh/100km</strong><br>• Carretera 80 km/h: <strong>15–18 kWh/100km</strong><br>• Montaña subiendo: <strong>hasta 35 kWh/100km</strong><br>• BYD Atto 3: <strong>~17 kWh/100km</strong>',
+    where: '📍 <strong>Dónde encontrarlo:</strong> Pantalla de tu carro (consumo promedio del viaje actual), app del fabricante, o ficha técnica como <strong>"consumo combinado WLTP"</strong>. Usa el valor de carretera si viajas en autopista.'
+  },
+  min: {
+    tag: 'EV y PHEV', tagClass: 'tip-tag-both',
+    title: 'Umbral Mínimo de Reserva (%)',
+    desc: 'Porcentaje de batería que ElevDrive nunca debe cruzar. Sirve para que las alertas te avisen con anticipación suficiente. También protege la batería a largo plazo.',
+    example: '⚠️ Recomendaciones:<br>• EV puro en ruta larga: <strong>15–20%</strong><br>• EV en ciudad con cargadores cerca: <strong>10%</strong><br>• PHEV (protección batería): <strong>20–25%</strong><br>• Clima frío: aumenta 5% adicional',
+    where: '📍 Algunos fabricantes recomiendan no bajar del 20% para prolongar la vida útil de la batería. Revisa el manual o la sección "vida útil de batería" de la app de tu vehículo.'
+  },
+  regen: {
+    tag: 'Solo PHEV', tagClass: 'tip-tag-phev',
+    title: 'Recarga Máxima en Frenado Regenerativo (kWh)',
+    desc: 'Cuánta energía puede recuperar el sistema de frenado regenerativo en una bajada larga. En PHEVs tiene un límite porque la batería es más pequeña que en un EV puro.',
+    example: '↘ Ejemplos por modelo:<br>• BYD Song Plus PHEV → <strong>8 kWh</strong><br>• Mitsubishi Outlander PHEV → <strong>13.8 kWh</strong><br>• Toyota RAV4 PHEV → <strong>18.1 kWh</strong><br>• Toyota Prius PHEV → <strong>8.8 kWh</strong>',
+    where: '📍 <strong>Dónde encontrarlo:</strong> Manual técnico del vehículo (sección "sistema de recuperación de energía"), ficha técnica del fabricante, o busca <strong>"[tu modelo] regenerative braking kWh"</strong> en Google.'
+  },
+  hcons: {
+    tag: 'Solo PHEV', tagClass: 'tip-tag-phev',
+    title: 'Consumo en Modo Híbrido (kWh/100km)',
+    desc: 'Cuando la batería baja del umbral mínimo, el motor de gasolina se activa. Este valor representa el consumo equivalente en modo híbrido combinado (gasolina + lo que queda de batería).',
+    example: '🔥 Valores típicos PHEV modo híbrido:<br>• BYD Song Plus → <strong>5.9L/100km ≈ 6 kWh eq.</strong><br>• Mitsubishi Outlander → <strong>~5.5 kWh eq.</strong><br>• Toyota RAV4 PHEV → <strong>~5 kWh eq.</strong><br><br>Tip: 1L gasolina ≈ 1.7 kWh equivalente en rendimiento',
+    where: '📍 <strong>Dónde encontrarlo:</strong> Manual del vehículo como <strong>"consumo en modo híbrido"</strong> o <strong>"consumo con batería agotada"</strong>. También en la pantalla de consumo de tu carro después de un viaje largo.'
+  },
+  hthresh: {
+    tag: 'Solo PHEV', tagClass: 'tip-tag-phev',
+    title: 'Umbral de Cambio a Modo Híbrido (%)',
+    desc: 'Porcentaje de batería al que ElevDrive asume que el motor de gasolina toma el control. Algunos PHEVs lo hacen automáticamente, otros permiten configurarlo desde la pantalla del carro.',
+    example: '⚙️ Valores por fabricante:<br>• BYD: <strong>~20%</strong> (configurable en pantalla)<br>• Mitsubishi: <strong>~10%</strong> automático<br>• Toyota: <strong>~0%</strong> (agota casi toda la batería)<br>• Volkswagen GTE: <strong>configurable</strong>',
+    where: '📍 <strong>Dónde encontrarlo:</strong> Pantalla de tu vehículo en modo de conducción (sección EV/Hybrid), manual del propietario sección "modos de conducción", o prueba en la app del fabricante. Si no sabes, usa <strong>20% como valor seguro</strong>.'
+  }
+};
+
+function showTip(key) {
+  const t = TIPS[key]; if(!t) return;
+  document.getElementById('tip-tag-wrap').innerHTML = `<span class="tip-tag ${t.tagClass}">${t.tag}</span>`;
+  document.getElementById('tip-title').textContent = t.title;
+  document.getElementById('tip-desc').textContent = t.desc;
+  document.getElementById('tip-example').innerHTML = t.example;
+  document.getElementById('tip-where').innerHTML = t.where;
+  document.getElementById('tip-modal').classList.add('open');
+}
+function closeTip() { document.getElementById('tip-modal').classList.remove('open'); }
+
+// ── Init ──────────────────────────────────
+updBtn(); updBattLabel(); updateVehBadge();
+</script>
+
+<!-- TIP MODAL -->
+<div id="tip-modal" onclick="if(event.target===this)closeTip()">
+  <div id="tip-box">
+    <div id="tip-tag-wrap"></div>
+    <div id="tip-title"></div>
+    <div id="tip-desc"></div>
+    <div id="tip-example"></div>
+    <div id="tip-where"></div>
+    <button id="tip-close" onclick="closeTip()">ENTENDIDO ✓</button>
+  </div>
+</div>
+</body>
+</html>
