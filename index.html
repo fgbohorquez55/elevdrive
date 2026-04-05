@@ -222,7 +222,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v4.3</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v4.4</span></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -589,7 +589,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v4.3</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v4.4</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -1301,16 +1301,20 @@ async function doAuth() {
     if (!res.ok || data.error) throw new Error(data.error || 'Error de autenticación');
     // Supabase register may return session=null if email confirmation required
     if (!data.session && authMode === 'register') {
-      errEl.textContent = '✅ Cuenta creada. Revisa tu email para confirmar, luego entra con tus datos.';
+      showToast('✅ Cuenta creada exitosamente. Ahora inicia sesión.', 'green');
       switchAuthTab('login');
+      document.getElementById('auth-pass').value = '';
       btn.disabled = false;
       btn.textContent = 'ENTRAR';
       return;
     }
     if (!data.session) throw new Error('No se recibió sesión. Intenta de nuevo.');
+    showToast('✅ Bienvenido a ElevDrive', 'green');
     saveSession(data.session);
     showProfiles();
-  } catch(e) { errEl.textContent = e.message; }
+  } catch(e) {
+    errEl.textContent = e.message;
+  }
   btn.disabled = false;
   btn.textContent = authMode==='login' ? 'ENTRAR' : 'CREAR CUENTA';
 }
@@ -1357,12 +1361,56 @@ async function loadProfiles() {
           <div class="profile-stats">${p.viajes_count||0} viajes registrados</div>
           <div class="profile-factor">${factorText}</div>
         </div>
-        <div style="color:var(--green);font-size:20px;">›</div>`;
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div onclick="event.stopPropagation();confirmDeleteProfile('${p.id}','${p.nombre}')" style="color:#f87171;font-size:18px;padding:4px 8px;">🗑</div>
+          <div style="color:var(--green);font-size:20px;">›</div>
+        </div>`;
       div.onclick = () => selectProfile(p);
       list.appendChild(div);
     });
   } catch(e) {
     list.innerHTML = `<div style="color:var(--red);font-size:12px;padding:16px;">${e.message}</div>`;
+  }
+}
+
+// ── Toast notification ────────────────────
+function showToast(msg, color='green') {
+  let t = document.getElementById('toast-msg');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-msg';
+    t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:12px;font-size:13px;font-family:Orbitron;font-weight:700;letter-spacing:1px;z-index:9999;transition:opacity 0.4s;max-width:90%;text-align:center;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = color==='green' ? 'rgba(0,255,157,0.15)' : 'rgba(248,113,113,0.15)';
+  t.style.color = color==='green' ? 'var(--green)' : '#f87171';
+  t.style.border = color==='green' ? '1px solid rgba(0,255,157,0.4)' : '1px solid rgba(248,113,113,0.4)';
+  t.style.opacity = '1';
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+// ── Confirm delete profile ─────────────────
+function confirmDeleteProfile(profileId, nombre) {
+  const confirmed = confirm(`¿Eliminar el perfil "${nombre}"?\n\nEsta acción eliminará también todos sus viajes y datos de calibración. No se puede deshacer.`);
+  if (confirmed) deleteProfile(profileId);
+}
+
+async function deleteProfile(profileId) {
+  if (!currentSession?.access_token) return;
+  try {
+    const res = await fetch('/.netlify/functions/perfiles', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+currentSession.access_token},
+      body: JSON.stringify({action:'delete', perfil_id: profileId})
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    showToast('Perfil eliminado', 'red');
+    await loadProfiles();
+  } catch(e) {
+    showToast('Error al eliminar: ' + e.message, 'red');
   }
 }
 
