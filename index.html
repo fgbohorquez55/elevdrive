@@ -173,7 +173,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v3.1</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v3.2</span></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -469,7 +469,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v3.1</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v3.2</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>
@@ -750,26 +750,30 @@ function updBtn(){
 }
 
 // ── OSRM + Elevation ─────────────────────
-function fetchWithTimeout(url, opts={}, ms=15000){
-  return Promise.race([
-    fetch(url, opts),
-    new Promise((_,reject)=>setTimeout(()=>reject(new Error('TIMEOUT: servidor no respondió en '+ms/1000+'s')),ms))
-  ]);
+function fetchWithTimeout(url, opts={}, ms=20000){
+  // Plain fetch — timeout handled by server
+  return fetch(url, opts);
 }
 
 async function fetchRoute(oLa,oLo,dLa,dLo){
-  // Calls Netlify Function — server-side, no CORS
-  const r = await fetchWithTimeout('/.netlify/functions/route', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({startLat:oLa, startLng:oLo, endLat:dLa, endLng:dLo})
-  }, 20000);
-  if(!r.ok){
-    const txt = await r.text();
-    throw new Error('Error servidor: ' + r.status + ' — ' + txt.slice(0,150));
+  setLoad('CALCULANDO RUTA...','Llamando función de servidor...');
+  let r, d;
+  try {
+    r = await fetch('/.netlify/functions/route', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({startLat:oLa, startLng:oLo, endLat:dLa, endLng:dLo})
+    });
+  } catch(netErr) {
+    throw new Error('Red: ' + netErr.message);
   }
-  const d = await r.json();
-  if(d.error) throw new Error('Routing error: ' + d.error);
+  setLoad('PROCESANDO...','HTTP ' + r.status);
+  try {
+    d = await r.json();
+  } catch(jsonErr) {
+    throw new Error('JSON error: ' + jsonErr.message);
+  }
+  if(!r.ok || d.error) throw new Error(d.error || 'HTTP ' + r.status);
   return d;
 }
 
