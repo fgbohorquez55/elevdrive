@@ -222,7 +222,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v4.2</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v4.3</span></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -589,7 +589,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v4.2</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v4.3</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -1272,8 +1272,13 @@ function loadProfile() {
 let authMode = 'login';
 function switchAuthTab(mode) {
   authMode = mode;
-  document.getElementById('tab-login').classList.toggle('active', mode==='login');
-  document.getElementById('tab-register').classList.toggle('active', mode==='register');
+  const tl = document.getElementById('tab-login');
+  const tr = document.getElementById('tab-register');
+  // Active tab: green text + card bg; inactive: muted text + transparent
+  tl.style.background = mode==='login' ? 'var(--card)' : 'none';
+  tl.style.color = mode==='login' ? 'var(--green)' : 'var(--muted)';
+  tr.style.background = mode==='register' ? 'var(--card)' : 'none';
+  tr.style.color = mode==='register' ? 'var(--green)' : 'var(--muted)';
   document.getElementById('auth-btn').textContent = mode==='login' ? 'ENTRAR' : 'CREAR CUENTA';
   document.getElementById('auth-err').textContent = '';
 }
@@ -1294,6 +1299,15 @@ async function doAuth() {
     });
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || 'Error de autenticación');
+    // Supabase register may return session=null if email confirmation required
+    if (!data.session && authMode === 'register') {
+      errEl.textContent = '✅ Cuenta creada. Revisa tu email para confirmar, luego entra con tus datos.';
+      switchAuthTab('login');
+      btn.disabled = false;
+      btn.textContent = 'ENTRAR';
+      return;
+    }
+    if (!data.session) throw new Error('No se recibió sesión. Intenta de nuevo.');
     saveSession(data.session);
     showProfiles();
   } catch(e) { errEl.textContent = e.message; }
@@ -1388,9 +1402,10 @@ function closeNewProfile() { document.getElementById('new-profile-modal').style.
 async function saveNewProfile() {
   const nombre = document.getElementById('new-profile-name').value.trim();
   if (!nombre) { alert('Escribe un nombre'); return; }
+  if (!currentSession?.access_token) { alert('Sesión expirada. Por favor inicia sesión de nuevo.'); doLogout(); return; }
   try {
     const res = await fetch('/.netlify/functions/perfiles', {
-      method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+currentSession?.access_token},
+      method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+currentSession.access_token},
       body: JSON.stringify({action:'create', nombre, avatar: selectedAvatar})
     });
     const data = await res.json();
