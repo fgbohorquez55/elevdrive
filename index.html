@@ -222,7 +222,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v4.4</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v4.5</span></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -589,7 +589,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v4.4</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v4.5</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -1379,7 +1379,7 @@ function showToast(msg, color='green') {
   if (!t) {
     t = document.createElement('div');
     t.id = 'toast-msg';
-    t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:12px;font-size:13px;font-family:Orbitron;font-weight:700;letter-spacing:1px;z-index:9999;transition:opacity 0.4s;max-width:90%;text-align:center;';
+    t.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);padding:12px 20px;border-radius:12px;font-size:13px;font-family:Orbitron;font-weight:700;letter-spacing:1px;z-index:9999;transition:opacity 0.4s;max-width:85%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
     document.body.appendChild(t);
   }
   t.textContent = msg;
