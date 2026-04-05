@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ElevDrive Test</title>
+<style>
+  body { background: #060a12; color: #00ff9d; font-family: monospace; padding: 20px; font-size: 14px; }
+  button { background: #00ff9d; color: #000; border: none; padding: 15px 30px; font-size: 16px; border-radius: 8px; cursor: pointer; margin: 10px 0; display: block; width: 100%; }
+  #log { margin-top: 20px; background: #0d1824; padding: 15px; border-radius: 8px; white-space: pre-wrap; min-height: 200px; border: 1px solid #1a2a3a; font-size: 12px; }
+</style>
+</head>
+<body>
+<h2>⚡ ElevDrive — Test de Conexión</h2>
+<p>Prueba directa del servidor Netlify</p>
+
+<button onclick="testRoute()">🔍 TEST RUTA (Bogotá → Medellín)</button>
+<button onclick="testGeocode()">🔍 TEST GEOCODING (Bogotá)</button>
+
+<div id="log">Toca un botón para probar...</div>
+
+<script>
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent += '\n' + new Date().toLocaleTimeString() + ': ' + msg;
+  console.log(msg);
+}
+
+async function testRoute() {
+  document.getElementById('log').textContent = 'Iniciando test de ruta...';
+  log('Llamando /.netlify/functions/route');
+  log('Payload: Bogotá (4.711, -74.072) → Medellín (6.244, -75.581)');
+  try {
+    const res = await fetch('/.netlify/functions/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startLat: 4.711, startLng: -74.072, endLat: 6.244, endLng: -75.581 })
+    });
+    log('HTTP Status: ' + res.status);
+    const text = await res.text();
+    log('Respuesta (' + text.length + ' chars):');
+    log(text.slice(0, 500));
+  } catch(e) {
+    log('ERROR: ' + e.message);
+    log('Stack: ' + e.stack);
+  }
+}
+
+async function testGeocode() {
+  document.getElementById('log').textContent = 'Iniciando test de geocoding...';
+  log('Llamando /.netlify/functions/geocode');
+  try {
+    const res = await fetch('/.netlify/functions/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: 'Bogotá' })
+    });
+    log('HTTP Status: ' + res.status);
+    const text = await res.text();
+    log('Respuesta (' + text.length + ' chars):');
+    log(text.slice(0, 300));
+  } catch(e) {
+    log('ERROR: ' + e.message);
+  }
+}
+</script>
+</body>
+</html>
