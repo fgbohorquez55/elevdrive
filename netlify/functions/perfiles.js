@@ -15,7 +15,7 @@ async function supabase(path, method = 'GET', body = null, token) {
     method,
     headers: {
       'apikey': SUPABASE_SECRET_KEY,
-      'Authorization': `Bearer ${token || SUPABASE_SECRET_KEY}`,
+      'Authorization': `Bearer ${SUPABASE_SECRET_KEY}`,
       'Content-Type': 'application/json',
       ...(method === 'POST' ? {'Prefer': 'return=representation'} : {})
     }
