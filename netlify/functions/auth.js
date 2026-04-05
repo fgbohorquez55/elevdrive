@@ -41,7 +41,13 @@ exports.handler = async (event) => {
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      if (data.error || data.error_description) throw new Error(data.error_description || data.error || 'Credenciales incorrectas');
+      if (!res.ok || data.error || data.error_description) {
+        const msg = data.error_description || data.error || 'Credenciales incorrectas';
+        const friendly = msg.toLowerCase().includes('invalid') ?
+          'Correo o contraseña incorrectos. Si no tienes cuenta, usa Registrarse.' : msg;
+        return { statusCode: 401, headers, body: JSON.stringify({ error: friendly }) };
+      }
+      if (!data.access_token) return { statusCode: 401, headers, body: JSON.stringify({ error: 'No se recibió sesión. Verifica tus datos.' }) };
       return { statusCode: 200, headers, body: JSON.stringify({ user: data.user, session: { access_token: data.access_token, refresh_token: data.refresh_token } }) };
     }
 
