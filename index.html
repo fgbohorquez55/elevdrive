@@ -938,9 +938,10 @@ let curSpd = (() => { try { return parseInt(localStorage.getItem('ed_spd')) || 7
 let routeCoords=[];
 let routeKmIndex=[];
 // GPS Kalman filter state
-let kfLat = null, kfLng = null, kfAccuracy = null;
+let kfLat = null, kfLng = null, kfAccuracy = null, kfProcess = 0.0005;
 const GPS_MIN_ACCURACY = 60;  // meters — ignore if worse
 const GPS_MAX_SPEED = 180;    // km/h — ignore impossible jumps
+let realtimeDrawCounter = 0;
 let lastGpsTime = 0;
 let map1=null,map2=null,car1=null,car2=null,poly1=null,poly2=null;
 let demoT=null,gpsW=null,lastGps=null;
@@ -1024,7 +1025,6 @@ function kalmanFilter(lat, lng, accuracy) {
     kfLat = lat; 
     kfLng = lng; 
     kfAccuracy = accuracy; 
-    kfProcess = 0.0005;
     return { lat, lng }; 
   }
   
@@ -1306,6 +1306,67 @@ function moveCar(){
   if(pt?.lat)try{car2.setLatLng([pt.lat,pt.lng]);}catch(e){}
 }
 
+// ── Auto-zoom tipo Waze: sigue tu posición en tiempo real ──
+function autoZoomWaze() {
+  if (!map2 || !routeKmIndex.length) return;
+  
+  // Mostrar desde 0.5 km atrás hasta 2.5 km adelante
+  const viewBehind = Math.max(0, curKm - 0.5);
+  const viewAhead  = Math.min(totalKm, curKm + 2.5);
+  
+  const pts = routeKmIndex.filter(p => p.km >= viewBehind && p.km <= viewAhead);
+  if (pts.length < 2) return;
+  
+  const latlngs = pts.map(p => [p.lat, p.lng]);
+  try {
+    const bounds = L.latLngBounds(latlngs);
+    // Más zoom si va lento (para ver curvas), menos zoom si va rápido
+    const pad = curSpd < 30 ? [70, 70] : [110, 110];
+    map2.fitBounds(bounds, { padding: pad, animate: true, duration: 0.35, maxZoom: 16, minZoom: 11 });
+  } catch(e) {}
+}
+
+// ── Marcador de posición en gráfico de elevación ──
+function drawPositionMarker(km) {
+  const cvEl = document.getElementById('cv2');
+  if (!cvEl || !routePts.length || totalKm <= 0) return;
+  
+  const ctx = cvEl.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W   = cvEl.width / dpr;
+  const H   = cvEl.height / dpr;
+  
+  // Replicar exactamente el mismo cálculo de winStart/winLen que usa drawChart
+  const winStart = (chartZoomKm > 0 && curKm > 0) ? curKm : 0;
+  const winEnd   = (chartZoomKm > 0) ? Math.min(totalKm, winStart + chartZoomKm) : totalKm;
+  const winLen   = winEnd - winStart || totalKm;
+  
+  // Si km está fuera de la ventana visible, no dibujar
+  if (km < winStart || km > winEnd) return;
+  
+  const posX = W * 0.04 + ((km - winStart) / winLen) * (W * 0.92);
+  
+  ctx.save();
+  // Línea vertical roja
+  ctx.strokeStyle = '#ff6b6b';
+  ctx.lineWidth   = 2.5;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(posX, 0);
+  ctx.lineTo(posX, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Círculo amarillo (punto de auto)
+  ctx.fillStyle   = '#fbbf24';
+  ctx.strokeStyle = '#1a2a3a';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.arc(posX, H - 14, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
 // ── Canvas Chart ──────────────────────────
 function zoomChart(dir) {
   const levels = [0, 5, 10, 20, 40, 80]; // 0=full route
@@ -1454,9 +1515,21 @@ function updateUI(){
     showAlertBox('drive-alert',alert);
   }
 
-  // Progress
+  // Progress bar
   document.getElementById('progress-fill').style.width=`${(curKm/totalKm)*100}%`;
-  drawChart('cv2',true); if(chartZoomKm>0)drawChart('cv1',true); moveCar();
+  
+  // ── Actualizar visuales en tiempo real ──
+  drawChart('cv2', true);
+  if (chartZoomKm > 0) drawChart('cv1', true);
+  moveCar();
+  
+  // Marcador de posición en gráfico (cada 2 updates para no saturar CPU)
+  realtimeDrawCounter++;
+  if (realtimeDrawCounter >= 2) {
+    drawPositionMarker(curKm);
+    autoZoomWaze();
+    realtimeDrawCounter = 0;
+  }
 }
 
 // ── Demo ──────────────────────────────────
@@ -1487,6 +1560,8 @@ function startGps(){
   if(!navigator.geolocation){alert('GPS no disponible');return;}
   sBatt=parseInt(document.getElementById('batt-sl').value);
   curKm=0; battPct=sBatt; curSpd=0; lastGps=null; tripConsumed=0; tripRegen=0;
+  // Resetear Kalman filter para nueva sesión GPS
+  kfLat=null; kfLng=null; kfAccuracy=null; realtimeDrawCounter=0;
   show('driving'); document.getElementById('spd-card').style.display='block';
   setTimeout(()=>{initMap(2);updateUI();},250);
   gpsW=navigator.geolocation.watchPosition(pos=>{
@@ -1529,13 +1604,35 @@ function startGps(){
         // Snap smoothed position to nearest route point
         const snapped = snapToRoute(smooth.lat, smooth.lng);
         if(snapped > curKm - 1) curKm = Math.min(snapped, totalKm);
-        const sl=slopeAt(curKm), delta=kwhPerKm(sl,curSpd)*d;
-        const isH=veh.type==='phev'&&battPct<=veh.hThresh;
-        let effDelta=isH?delta*(veh.hCons/veh.cons):delta;
-        if(delta<0&&veh.type==='phev')effDelta=Math.max(delta,-veh.regenMax/veh.cap*d);
-        const newKwh=Math.max((veh.minPct/100)*veh.cap*(isH?0.5:1),Math.min(veh.cap,(battPct/100*veh.cap)-effDelta));
-        if(delta>0)tripConsumed+=delta;else tripRegen+=Math.abs(delta);
-        battPct=+(newKwh/veh.cap*100).toFixed(1);
+        
+        // ── Pendiente LOCAL exacta (ventana 200-400m) ──
+        const sl = slopeAt(curKm);
+        
+        // ── Detectar si AHORA es bajada real (no desfasada) ──
+        const regenCheck = shouldRegenerate(curKm, battPct);
+        
+        // ── Calcular consumo base ──
+        let delta = kwhPerKm(sl, curSpd) * d;
+        
+        // ── Lógica PHEV ──
+        const isH = veh.type==='phev' && battPct<=veh.hThresh;
+        let effDelta = isH ? delta*(veh.hCons/veh.cons) : delta;
+        
+        // ── Regen SOLO si shouldRegenerate confirma bajada real ──
+        if(delta < 0 && !regenCheck.shouldRegen) {
+          // slopeAt dice bajada pero analyzeLocalSlope no confirma → ignorar regen
+          effDelta = Math.abs(delta) * 0.05; // consumo mínimo plano
+        }
+        if(delta < 0 && regenCheck.shouldRegen && veh.type==='phev') {
+          effDelta = Math.max(delta, -veh.regenMax/veh.cap*d);
+        }
+        
+        const newKwh = Math.max(
+          (veh.minPct/100)*veh.cap*(isH?0.5:1),
+          Math.min(veh.cap, (battPct/100*veh.cap)-effDelta)
+        );
+        if(delta>0) tripConsumed+=delta; else tripRegen+=Math.abs(delta);
+        battPct = +(newKwh/veh.cap*100).toFixed(1);
         updateUI();
       }
       lastGps={lat:smooth.lat,lng:smooth.lng};
