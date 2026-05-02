@@ -353,7 +353,16 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
       <button id="tab-register" onclick="switchAuthTab('register')" style="padding:10px;border-radius:8px;font-family:'Orbitron';font-size:11px;font-weight:700;cursor:pointer;border:none;background:none;color:var(--muted);">REGISTRARSE</button>
     </div>
     <input id="auth-email" type="email" placeholder="correo@ejemplo.com" style="width:100%;background:#060a12;border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-size:15px;font-family:'Barlow Condensed';outline:none;margin-bottom:12px;">
-    <input id="auth-pass" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter')doAuth()" style="width:100%;background:#060a12;border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-size:15px;font-family:'Barlow Condensed';outline:none;margin-bottom:12px;">
+    <div style="position:relative;margin-bottom:12px;">
+      <input id="auth-pass" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter')doAuth()" style="width:100%;background:#060a12;border:1px solid var(--border);border-radius:10px;padding:13px 44px 13px 14px;color:var(--text);font-size:15px;font-family:'Barlow Condensed';outline:none;">
+      <button type="button"
+        ontouchstart="document.getElementById('auth-pass').type='text'"
+        ontouchend="document.getElementById('auth-pass').type='password'"
+        onmousedown="document.getElementById('auth-pass').type='text'"
+        onmouseup="document.getElementById('auth-pass').type='password'"
+        onmouseleave="document.getElementById('auth-pass').type='password'"
+        style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:var(--muted);padding:4px;user-select:none;">👁</button>
+    </div>
     <button id="auth-btn" onclick="doAuth()" style="width:100%;padding:14px;border-radius:10px;font-family:'Orbitron';font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;border:none;background:linear-gradient(135deg,rgba(0,255,157,0.15),rgba(0,255,157,0.25));color:var(--green);">ENTRAR</button>
     <div id="auth-err" style="font-size:12px;color:var(--red);margin-top:8px;text-align:center;min-height:18px;"></div>
     <div id="forgot-wrap" style="text-align:center;margin-top:10px;">
