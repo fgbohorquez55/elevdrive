@@ -41,8 +41,39 @@ exports.handler = async (event) => {
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      if (data.error || data.error_description) throw new Error(data.error_description || data.error || 'Credenciales incorrectas');
+      if (!res.ok || data.error || data.error_description) {
+        // Check if the email actually exists by attempting a password reset
+        // If the email doesn't exist, Supabase OTP will return an error
+        const checkRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
+          headers: { 'apikey': SUPABASE_SECRET_KEY, 'Authorization': `Bearer ${SUPABASE_SECRET_KEY}` }
+        });
+        const checkData = await checkRes.json();
+        const emailExists = checkData.users && checkData.users.length > 0;
+        const friendly = emailExists
+          ? 'Contraseña incorrecta. Verifica e intenta de nuevo.'
+          : 'Este correo no está registrado. ¿Quieres crear una cuenta?';
+        const hint = emailExists ? null : 'register';
+        return { statusCode: 401, headers, body: JSON.stringify({ error: friendly, hint }) };
+      }
+      if (!data.access_token) return { statusCode: 401, headers, body: JSON.stringify({ error: 'No se recibió sesión. Verifica tus datos.' }) };
       return { statusCode: 200, headers, body: JSON.stringify({ user: data.user, session: { access_token: data.access_token, refresh_token: data.refresh_token } }) };
+    }
+
+    if (action === 'reset') {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({ 
+          email,
+          redirect_to: 'https://elevdrive.netlify.app'
+        })
+      });
+      // Supabase returns 200 even if email not found (security best practice)
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error_description || d.msg || 'Error al enviar el correo');
+      }
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
     }
 
     if (action === 'refresh') {
