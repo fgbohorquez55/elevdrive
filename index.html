@@ -244,7 +244,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.5</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.6</span></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -351,7 +351,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   <div style="font-size:48px;margin-bottom:8px;">⚡</div>
   <div style="font-family:'Orbitron';font-size:20px;font-weight:900;color:var(--green);letter-spacing:3px;margin-bottom:4px;">ELEVDRIVE</div>
   <div style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">EV · PHEV NAVIGATOR</div>
-  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.5</div>
+  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.6</div>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:100%;max-width:380px;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#060a12;border-radius:10px;padding:4px;margin-bottom:20px;">
       <button id="tab-login" onclick="switchAuthTab('login')" style="padding:10px;border-radius:8px;font-family:'Orbitron';font-size:11px;font-weight:700;cursor:pointer;border:none;background:var(--card);color:var(--green);">ENTRAR</button>
@@ -722,7 +722,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v5.5</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v5.6</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -1289,9 +1289,10 @@ function updateUI(){
   rc.style.background=rec.bg; rc.style.border=`1px solid ${rec.color}33`; rc.style.boxShadow=rec.glow;
   document.getElementById('rec-icon').textContent=rec.icon; document.getElementById('rec-icon').style.color=rec.color;
   document.getElementById('rec-text').textContent=rec.text;
-  // Trigger sounds based on rec.text (rec.alert doesn't exist in getRec)
+  // Trigger sounds + notifications only when alert CHANGES (not every tick)
   if (rec.text !== lastAlertSent) {
     lastAlertSent = rec.text;
+    // Sound plays ONCE when alert changes, not repeatedly
     if (rec.text === 'REGENERAR') {
       playSound('regen');
     } else if (rec.text === 'SUBIDA FUERTE') {
@@ -1398,9 +1399,21 @@ function startGps(){
   show('driving'); document.getElementById('spd-card').style.display='block';
   setTimeout(()=>{initMap(2);updateUI();},250);
   gpsW=navigator.geolocation.watchPosition(pos=>{
-    curSpd=pos.coords.speed!=null?+(pos.coords.speed*3.6).toFixed(0):curSpd;
-    document.getElementById('d-spd').innerHTML=`${curSpd} <span style="font-size:13px;color:var(--muted);">km/h</span>`;
-    if(lastGps){
+    try {
+      // Actualizar velocidad
+      curSpd=pos.coords.speed!=null?+(pos.coords.speed*3.6).toFixed(0):curSpd;
+      const dSpdEl = document.getElementById('d-spd');
+      if (dSpdEl) {
+        dSpdEl.innerHTML=`${curSpd} <span style="font-size:13px;color:var(--muted);">km/h</span>`;
+      }
+      
+      // Si es primera lectura, guardar y retornar
+      if(!lastGps){
+        lastGps={lat:pos.coords.latitude,lng:pos.coords.longitude};
+        lastGpsTime = pos.timestamp || Date.now();
+        return;
+      }
+      
       const rawLat = pos.coords.latitude;
       const rawLng = pos.coords.longitude;
       const accuracy = pos.coords.accuracy || 999;
@@ -1409,13 +1422,16 @@ function startGps(){
       // Validate GPS reading quality
       if (!isValidGpsReading(rawLat, rawLng, accuracy, timestamp)) {
         updateGpsSignal(accuracy);
-        return; // Skip this reading
+        return;
       }
       updateGpsSignal(accuracy);
       lastGpsTime = timestamp;
 
       // Apply Kalman filter to smooth position
-      const smooth = kalmanFilter(rawLat, rawLng, accuracy);
+      let smooth = {lat: rawLat, lng: rawLng};
+      if (typeof kalmanFilter === 'function') {
+        smooth = kalmanFilter(rawLat, rawLng, accuracy);
+      }
       const d = hvKm(lastGps.lat, lastGps.lng, smooth.lat, smooth.lng);
 
       if(d>0.01){
@@ -1431,8 +1447,10 @@ function startGps(){
         battPct=+(newKwh/veh.cap*100).toFixed(1);
         updateUI();
       }
+      lastGps={lat:smooth.lat,lng:smooth.lng};
+    } catch(err) {
+      console.error('GPS Error:', err.message);
     }
-    lastGps={lat:smooth.lat,lng:smooth.lng};
   },err=>alert('GPS: '+err.message),{enableHighAccuracy:true,maximumAge:1500,timeout:10000});
 }
 
@@ -2158,17 +2176,23 @@ function updateNotifBtn() {
   if (sbtn) { sbtn.textContent = notifEnabled ? '🔔 ON' : '🔕 OFF'; sbtn.style.color = notifEnabled ? 'var(--green)' : 'var(--muted)'; }
 }
 
+let lastNotifTime = {};
 function sendAlertNotif(title, body) {
   if (!notifEnabled || Notification.permission !== 'granted') return;
-  if (lastAlertSent === title) return; // no duplicates
-  lastAlertSent = title;
+  // Cooldown: same alert can't fire again for 5 minutes
+  const now = Date.now();
+  if (lastNotifTime[title] && now - lastNotifTime[title] < 5 * 60 * 1000) return;
+  lastNotifTime[title] = now;
   try {
-    new Notification(title, {
+    const n = new Notification(title, {
       body,
       icon: '/icon-192.png',
       silent: false,
-      vibrate: [200, 100, 200]
+      vibrate: [200, 100, 200],
+      requireInteraction: false  // auto-dismiss after a few seconds
     });
+    // Auto-close after 4 seconds
+    setTimeout(() => { try { n.close(); } catch(e) {} }, 4000);
   } catch(e) {}
 }
 
