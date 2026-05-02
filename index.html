@@ -12,6 +12,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{--bg:#060a12;--card:#0d1824;--border:#1a2a3a;--green:#00ff9d;--blue:#38c8f0;--yellow:#fbbf24;--red:#f87171;--orange:#fb923c;--text:#e2e8f0;--muted:#4a6a8a;}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f0f4f8;
+    --card: #ffffff;
+    --border: #d0dbe8;
+    --text: #0f2035;
+    --muted: #4a6080;
+    --blue: #0066cc;
+    --green: #00a86b;
+    --yellow: #d4800a;
+    --red: #cc2200;
+  }
+  body { color: var(--text); }
+  .num { color: var(--text) !important; }
+  .lbl { color: var(--muted) !important; }
+  #header { background: var(--card); border-bottom: 1px solid var(--border); }
+  .screen { background: var(--bg); }
+}
 html,body{background:var(--bg);color:var(--text);font-family:'Barlow Condensed','Arial Narrow',sans-serif;height:100%;overflow:hidden;}
 #app{max-width:480px;margin:0 auto;height:100vh;display:flex;flex-direction:column;}
 .num{font-family:'Orbitron',monospace;}
@@ -222,12 +240,13 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v4.8</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.0</span></div>
     </div>
   </div>
   <div class="hdr-right">
     <div id="profile-badge" onclick="showProfiles()"><span id="profile-badge-avatar">🧑</span><span id="profile-badge-name">PERFIL</span></div>
     <button id="veh-btn" onclick="openVehModal()">🚗 VEHÍCULO</button>
+    <button id="notif-btn" onclick="requestNotifPermission()" style="font-family:'Orbitron';font-size:9px;font-weight:700;letter-spacing:1px;padding:6px 8px;border-radius:8px;background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;">🔕 Alertas</button>
     <button id="back-btn" onclick="resetAll()">← RUTA</button>
   </div>
 </div>
@@ -498,7 +517,14 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
         <div><div style="font-size:9px;color:var(--muted)">AL LLEGAR</div><div class="num" id="r-dest-batt" style="font-size:16px;font-weight:700;"></div></div>
       </div>
     </div>
-    <div class="card"><div class="lbl" style="margin-bottom:7px;">PERFIL DE ELEVACIÓN</div><canvas id="cv1" style="width:100%;height:100px;display:block;"></canvas></div>
+    <div class="card"><div class="lbl" style="margin-bottom:7px;">PERFIL DE ELEVACIÓN</div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <span id="zoom-label" style="font-size:10px;color:var(--muted);">RUTA COMPLETA</span>
+      <div style="display:flex;gap:6px;">
+        <button onclick="zoomChart(-1)" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 10px;font-size:14px;cursor:pointer;">−</button>
+        <button onclick="zoomChart(1)" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 10px;font-size:14px;cursor:pointer;">+</button>
+      </div>
+    </div>
+    <canvas id="cv1" style="width:100%;height:110px;display:block;border-radius:6px;"></canvas></div>
     <!-- Pre-trip alert -->
     <div id="pretrip-alert" class="alert-box"></div>
     <div class="btn2">
@@ -566,7 +592,14 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     </div>
 
     <!-- Chart -->
-    <div class="card"><div class="lbl" style="margin-bottom:7px;">PERFIL DE ELEVACIÓN</div><canvas id="cv2" style="width:100%;height:95px;display:block;"></canvas></div>
+    <div class="card"><div class="lbl" style="margin-bottom:7px;">PERFIL DE ELEVACIÓN</div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <span id="zoom-label2" style="font-size:10px;color:var(--muted);">RUTA COMPLETA</span>
+      <div style="display:flex;gap:6px;">
+        <button onclick="zoomChart(-1)" style="background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 10px;font-size:14px;cursor:pointer;">−</button>
+        <button onclick="zoomChart(1)" style="background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 10px;font-size:14px;cursor:pointer;">+</button>
+      </div>
+    </div>
+    <canvas id="cv2" style="width:100%;height:110px;display:block;border-radius:6px;"></canvas></div>
 
     <div id="spd-card" class="card" style="text-align:center;display:none;">
       <div class="lbl">VELOCIDAD GPS</div>
@@ -589,7 +622,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v4.8</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v5.0</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -638,6 +671,11 @@ function saveVehicle(){
   veh.hCons=parseFloat(document.getElementById('f-hcons').value)||6;
   veh.hThresh=parseFloat(document.getElementById('f-hthresh').value)||20;
   updateVehBadge();
+  // Persist vehicle config
+  try { localStorage.setItem('ed_veh', JSON.stringify(veh)); } catch(e) {}
+  // Hide first-use banner permanently
+  const banner = document.getElementById('first-use-banner');
+  if (banner) banner.style.display = 'none';
   const s=document.getElementById('veh-saved'); s.style.display='block';
   setTimeout(()=>{s.style.display='none';closeVehModal();},1200);
   updBattLabel();
@@ -778,6 +816,7 @@ let orig=null,dest=null;
 let routePts=[],totalKm=0,routeDur='';
 let curKm=0,battPct=80,sBatt=80,curSpd=72;
 let routeCoords=[];
+let routeKmIndex=[];
 let map1=null,map2=null,car1=null,car2=null,poly1=null,poly2=null;
 let demoT=null,gpsW=null,lastGps=null;
 let tripConsumed=0,tripRegen=0;
@@ -795,6 +834,22 @@ function slopeAt(km){
   return d>0?((e2-e1)/d)*100:0;
 }
 function hvKm(a,b,c,d){const R=6371,r=Math.PI/180,dLa=(c-a)*r,dLo=(d-b)*r,x=Math.sin(dLa/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+
+// Snap GPS position to nearest point on route — fixes accumulation drift
+function snapToRoute(lat, lng) {
+  if (!routeKmIndex.length) return curKm;
+  let minDist = Infinity, bestKm = curKm;
+  // Search from ~2km behind current position to avoid going backwards on sharp curves
+  const searchFrom = Math.max(0, curKm - 2);
+  for (const pt of routeKmIndex) {
+    if (pt.km < searchFrom) continue;
+    // Stop searching 30km ahead — if we haven't found a match, something is wrong
+    if (pt.km > curKm + 30) break;
+    const d = hvKm(lat, lng, pt.lat, pt.lng);
+    if (d < minDist) { minDist = d; bestKm = pt.km; }
+  }
+  return bestKm;
+}
 function sample(arr,n){if(arr.length<=n)return arr;return Array.from({length:n},(_,i)=>arr[Math.round(i*(arr.length-1)/(n-1))]);}
 
 // ── Screens ───────────────────────────────
@@ -928,6 +983,12 @@ async function calcRoute(){
   try{
     const{coords,distKm,dur}=await routePromise;
     routeCoords=coords;
+    // Build full km index for accurate GPS snapping
+    let cumFull=0;
+    routeKmIndex=coords.map((p,i)=>{
+      if(i>0)cumFull+=hvKm(coords[i-1][0],coords[i-1][1],p[0],p[1]);
+      return{lat:p[0],lng:p[1],km:+cumFull.toFixed(3)};
+    });
     setLoad('OBTENIENDO ALTITUDES...','Consultando perfil de elevación...');
     const s=sample(coords,80); const elevs=await fetchElev(s);
     let cum=0;
@@ -997,25 +1058,45 @@ function moveCar(){
 }
 
 // ── Canvas Chart ──────────────────────────
+function zoomChart(dir) {
+  const levels = [0, 5, 10, 20, 40, 80]; // 0=full route
+  const cur = levels.indexOf(chartZoomKm);
+  const next = Math.max(0, Math.min(levels.length-1, cur + dir));
+  chartZoomKm = levels[next];
+  const txt = chartZoomKm === 0 ? 'RUTA COMPLETA' : `PRÓXIMOS ${chartZoomKm} KM`;
+  const l1 = document.getElementById('zoom-label');
+  const l2 = document.getElementById('zoom-label2');
+  if (l1) l1.textContent = txt;
+  if (l2) l2.textContent = txt;
+  drawChart('cv1', curKm > 0);
+  drawChart('cv2', curKm > 0);
+}
+
 function drawChart(id,showPos){
   const cv=document.getElementById(id); if(!cv||!routePts.length)return;
   const dpr=window.devicePixelRatio||1;
   const W=cv.offsetWidth||cv.parentElement.offsetWidth||300, H=cv.offsetHeight||100;
   cv.width=W*dpr; cv.height=H*dpr;
   const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
-  const minE=Math.min(...routePts.map(p=>p.e))-60, maxE=Math.max(...routePts.map(p=>p.e))+60;
-  const toX=km=>W*0.07+(km/totalKm)*(W*0.87);
+  // Zoom window: if chartZoomKm > 0, show only [curKm, curKm+chartZoomKm]
+  const winStart = (chartZoomKm > 0 && curKm > 0) ? curKm : 0;
+  const winEnd = (chartZoomKm > 0) ? Math.min(totalKm, winStart + chartZoomKm) : totalKm;
+  const winPts = routePts.filter(p => p.km >= winStart - 0.1 && p.km <= winEnd + 0.1);
+  const drawPts = winPts.length >= 2 ? winPts : routePts;
+  const winLen = winEnd - winStart || totalKm;
+  const minE=Math.min(...drawPts.map(p=>p.e))-50, maxE=Math.max(...drawPts.map(p=>p.e))+50;
+  const toX=km=>W*0.04+((km-winStart)/winLen)*(W*0.92);
   const toY=e=>H-10-((e-minE)/(maxE-minE))*(H-24);
   ctx.strokeStyle='#1a2a3a'; ctx.lineWidth=0.5;
   for(let i=0;i<=3;i++){const y=H-10-((H-24)/3)*i;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
   const g=ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'rgba(56,200,240,0.28)'); g.addColorStop(1,'rgba(56,200,240,0.02)');
-  ctx.beginPath(); ctx.moveTo(toX(routePts[0].km),toY(routePts[0].e));
-  routePts.forEach(p=>ctx.lineTo(toX(p.km),toY(p.e)));
-  ctx.lineTo(toX(routePts[routePts.length-1].km),H); ctx.lineTo(toX(routePts[0].km),H); ctx.closePath();
+  ctx.beginPath(); ctx.moveTo(toX(drawPts[0].km),toY(drawPts[0].e));
+  drawPts.forEach(p=>ctx.lineTo(toX(p.km),toY(p.e)));
+  ctx.lineTo(toX(drawPts[drawPts.length-1].km),H); ctx.lineTo(toX(drawPts[0].km),H); ctx.closePath();
   ctx.fillStyle=g; ctx.fill();
   ctx.beginPath(); ctx.strokeStyle='#38c8f0'; ctx.lineWidth=2;
-  routePts.forEach((p,i)=>i===0?ctx.moveTo(toX(p.km),toY(p.e)):ctx.lineTo(toX(p.km),toY(p.e)));
+  drawPts.forEach((p,i)=>i===0?ctx.moveTo(toX(p.km),toY(p.e)):ctx.lineTo(toX(p.km),toY(p.e)));
   ctx.stroke();
   if(showPos&&curKm>0){
     const x=toX(curKm),y=toY(lerpE(curKm));
@@ -1049,7 +1130,12 @@ function updateUI(){
   const rc=document.getElementById('rec-card');
   rc.style.background=rec.bg; rc.style.border=`1px solid ${rec.color}33`; rc.style.boxShadow=rec.glow;
   document.getElementById('rec-icon').textContent=rec.icon; document.getElementById('rec-icon').style.color=rec.color;
-  document.getElementById('rec-text').textContent=rec.text; document.getElementById('rec-text').style.color=rec.color;
+  document.getElementById('rec-text').textContent=rec.text;
+  if (rec.alert && rec.alert !== lastAlertSent) {
+    const alertMsgs={'PRECAUCIÓN':'Batería baja — revisa autonomía restante','NO LLEGAS':'⚠️ Batería insuficiente para llegar al destino','REGENERAR ↘↘':'Descenso fuerte — activa frenado regenerativo al máximo','REGENERAR ↘':'Bajada — activa frenado regenerativo','ASCENSO FUERTE':'Subida pronunciada — reduce velocidad para eficiencia','ASCENSO':'Subida — consumo aumentará en este tramo'};
+    sendAlertNotif('ElevDrive: '+(rec.alert||rec.text), alertMsgs[rec.alert]||rec.sub||'');
+  }
+  document.getElementById('rec-text').style.color=rec.color;
   document.getElementById('rec-sub').textContent=rec.sub;
 
   // Metrics
@@ -1104,7 +1190,7 @@ function updateUI(){
 
   // Progress
   document.getElementById('progress-fill').style.width=`${(curKm/totalKm)*100}%`;
-  drawChart('cv2',true); moveCar();
+  drawChart('cv2',true); if(chartZoomKm>0)drawChart('cv1',true); moveCar();
 }
 
 // ── Demo ──────────────────────────────────
@@ -1140,8 +1226,10 @@ function startGps(){
     document.getElementById('d-spd').innerHTML=`${curSpd} <span style="font-size:13px;color:var(--muted);">km/h</span>`;
     if(lastGps){
       const d=hvKm(lastGps.lat,lastGps.lng,pos.coords.latitude,pos.coords.longitude);
-      if(d>0.008){
-        curKm=Math.min(curKm+d,totalKm);
+      if(d>0.01){
+        // Snap to nearest route point — elimina acumulación de deriva GPS
+        const snapped=snapToRoute(pos.coords.latitude,pos.coords.longitude);
+        if(snapped>curKm-1) curKm=Math.min(snapped,totalKm);
         const sl=slopeAt(curKm), delta=kwhPerKm(sl,curSpd)*d;
         const isH=veh.type==='phev'&&battPct<=veh.hThresh;
         let effDelta=isH?delta*(veh.hCons/veh.cons):delta;
@@ -1188,7 +1276,7 @@ function finishRoute(){
 
 function resetAll(){
   clearInterval(demoT); if(gpsW!=null)navigator.geolocation.clearWatch(gpsW);
-  orig=null; dest=null; routePts=[]; totalKm=0; routeCoords=[]; curKm=0; battPct=80;
+  orig=null; dest=null; routePts=[]; totalKm=0; routeCoords=[]; routeKmIndex=[]; curKm=0; battPct=80;
   clearPlace('orig'); clearPlace('dest');
   [map1,map2].forEach(m=>{if(m)try{m.remove();}catch(e){}});
   map1=null;map2=null;poly1=null;poly2=null;car1=null;car2=null;
@@ -1241,6 +1329,7 @@ async function useGpsAsOrigin() {
 
 // ── Auth & Profile State ──────────────────
 let currentSession = null;
+let chartZoomKm = 0; // 0 = full route, >0 = show only next N km
 let currentProfile = null;
 let calibData = { regen: null, ac: null };
 let pendingTripData = null;
@@ -1483,7 +1572,14 @@ async function saveNewProfile() {
     closeNewProfile();
     document.getElementById('new-profile-name').value = '';
     await loadProfiles();
-  } catch(e) { alert(e.message); }
+  } catch(e) {
+    const msg = e.message || 'Error de red';
+    if (msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')) {
+      showToast('Error de conexión. Verifica tu internet e intenta de nuevo.', 'red');
+    } else {
+      showToast(msg, 'red');
+    }
+  }
 }
 
 // ── Calibration modal ─────────────────────
@@ -1550,6 +1646,27 @@ function skipCalib() {
 
 // ── App initialization ────────────────────
 async function initApp() {
+  // Restore vehicle config from previous session
+  try {
+    const savedVeh = localStorage.getItem('ed_veh');
+    if (savedVeh) {
+      const sv = JSON.parse(savedVeh);
+      Object.assign(veh, sv);
+      updateVehBadge(); updBattLabel();
+      // Hide banner — vehicle already configured
+      const banner = document.getElementById('first-use-banner');
+      if (banner) banner.style.display = 'none';
+      // Restore vehicle form fields
+      const typeBtn = document.getElementById(veh.type === 'ev' ? 'btn-ev' : 'btn-phev');
+      if (typeBtn) typeBtn.click();
+      ['cap','cons','minPct','regen','hCons','hThresh'].forEach((k,i) => {
+        const ids = ['f-cap','f-cons','f-min','f-regen','f-hcons','f-hthresh'];
+        const el = document.getElementById(ids[i]);
+        if (el) el.value = Object.values(veh)[i+1] || el.value;
+      });
+    }
+  } catch(e) {}
+  loadNotifPref(); updateNotifBtn();
   const session = loadSession();
   if (session?.access_token) {
     currentSession = session;
@@ -1562,6 +1679,51 @@ async function initApp() {
   } else {
     document.getElementById('auth-screen').style.display = 'flex';
   }
+}
+
+// ── Push Notifications ───────────────────────────
+let notifEnabled = false;
+let lastAlertSent = '';
+
+async function requestNotifPermission() {
+  if (!('Notification' in window)) {
+    showToast('Tu navegador no soporta notificaciones', 'red');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  notifEnabled = perm === 'granted';
+  try { localStorage.setItem('ed_notif', notifEnabled ? '1' : '0'); } catch(e) {}
+  showToast(notifEnabled ? '✅ Notificaciones activadas' : 'Notificaciones denegadas', notifEnabled ? 'green' : 'red');
+  updateNotifBtn();
+}
+
+function loadNotifPref() {
+  try {
+    const saved = localStorage.getItem('ed_notif');
+    if (saved === '1' && Notification.permission === 'granted') notifEnabled = true;
+  } catch(e) {}
+}
+
+function updateNotifBtn() {
+  const btn = document.getElementById('notif-btn');
+  if (!btn) return;
+  btn.textContent = notifEnabled ? '🔔 Alertas ON' : '🔕 Alertas OFF';
+  btn.style.borderColor = notifEnabled ? 'var(--green)' : 'var(--border)';
+  btn.style.color = notifEnabled ? 'var(--green)' : 'var(--muted)';
+}
+
+function sendAlertNotif(title, body) {
+  if (!notifEnabled || Notification.permission !== 'granted') return;
+  if (lastAlertSent === title) return; // no duplicates
+  lastAlertSent = title;
+  try {
+    new Notification(title, {
+      body,
+      icon: '/icon-192.png',
+      silent: false,
+      vibrate: [200, 100, 200]
+    });
+  } catch(e) {}
 }
 
 // ── Tooltip data ──────────────────────────
