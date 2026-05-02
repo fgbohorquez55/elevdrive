@@ -953,21 +953,90 @@ function lerpE(km){
   return routePts[routePts.length-1].e;
 }
 function slopeAt(km){
-  const w=Math.max(0.4,totalKm*0.012);
-  const e1=lerpE(Math.max(0,km-w)),e2=lerpE(Math.min(totalKm,km+w));
-  const d=(Math.min(totalKm,km+w)-Math.max(0,km-w))*1000;
-  return d>0?((e2-e1)/d)*100:0;
+  // MEJORADO: Ventana dinámica local (200-400m, no 6km)
+  let windowSize = 0.2;
+  if (totalKm > 100) windowSize = 0.3;
+  if (totalKm > 500) windowSize = 0.4;
+  windowSize = Math.min(windowSize, 1.0);
+  
+  const kmBefore = Math.max(0, km - windowSize);
+  const kmAfter = Math.min(totalKm, km + windowSize);
+  
+  const eBefore = lerpE(kmBefore);
+  const eAfter = lerpE(kmAfter);
+  
+  const distanceM = (kmAfter - kmBefore) * 1000;
+  if (distanceM <= 0) return 0;
+  
+  const slope = (eAfter - eBefore) / distanceM * 100;
+  return Math.max(-40, Math.min(40, slope));  // Limitar a ±40%
 }
+
+// NUEVO: Análisis de pendiente local para detección exacta de regeneración
+function analyzeLocalSlope(km) {
+  const slopes = {
+    before: slopeAt(Math.max(0, km - 0.5)),
+    current: slopeAt(km),
+    ahead: slopeAt(Math.min(totalKm, km + 0.5))
+  };
+  
+  let trend = 'flat';
+  if (slopes.ahead < slopes.current - 1.0) {
+    trend = 'down';
+  } else if (slopes.ahead > slopes.current + 1.0) {
+    trend = 'up';
+  }
+  
+  const slopeVariance = Math.abs(slopes.ahead - slopes.before) / 2;
+  const confidence = Math.max(0, 1 - (slopeVariance / 10));
+  const isTransition = trend !== 'flat' && confidence > 0.7;
+  
+  return {
+    currentSlope: slopes.current,
+    trend: trend,
+    isTransition: isTransition,
+    confidence: confidence
+  };
+}
+
+// NUEVO: Determinar exactamente cuándo debe regenerar
+function shouldRegenerate(km, battPct) {
+  const analysis = analyzeLocalSlope(km);
+  const inDownhill = analysis.currentSlope < -2.0;
+  const notInUphill = analysis.currentSlope > -2.0;
+  const batteryNotFull = battPct < 95;
+  
+  const shouldRegen = inDownhill && notInUphill && batteryNotFull;
+  
+  return {
+    shouldRegen: shouldRegen,
+    slope: analysis.currentSlope,
+    analysis: analysis
+  };
+}
+
 function hvKm(a,b,c,d){const R=6371,r=Math.PI/180,dLa=(c-a)*r,dLo=(d-b)*r,x=Math.sin(dLa/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 
 // Snap GPS position to nearest point on route — fixes accumulation drift
 // ── GPS Kalman Filter ───────────────────────────────
 function kalmanFilter(lat, lng, accuracy) {
-  if (kfLat === null) { kfLat = lat; kfLng = lng; kfAccuracy = accuracy; return { lat, lng }; }
-  const k = kfAccuracy / (kfAccuracy + Math.max(accuracy, 1));
-  kfLat += k * (lat - kfLat);
-  kfLng += k * (lng - kfLng);
-  kfAccuracy = (1 - k) * kfAccuracy + 3;
+  if (kfLat === null) { 
+    kfLat = lat; 
+    kfLng = lng; 
+    kfAccuracy = accuracy; 
+    kfProcess = 0.0005;
+    return { lat, lng }; 
+  }
+  
+  const R = Math.max(accuracy * accuracy, 25);
+  const P = kfAccuracy + kfProcess;
+  const K = P / (P + R);
+  
+  kfLat += K * (lat - kfLat);
+  kfLng += K * (lng - kfLng);
+  kfAccuracy = (1 - K) * (kfAccuracy + kfProcess);
+  kfAccuracy = Math.min(kfAccuracy, 100);
+  
   return { lat: kfLat, lng: kfLng };
 }
 
@@ -990,16 +1059,38 @@ function updateGpsSignal(accuracy) {
 
 function snapToRoute(lat, lng) {
   if (!routeKmIndex.length) return curKm;
-  let minDist = Infinity, bestKm = curKm;
-  // Search from ~2km behind current position to avoid going backwards on sharp curves
-  const searchFrom = Math.max(0, curKm - 2);
+  let minDist = Infinity;
+  let bestKm = curKm;
+  let bestDeviation = Infinity;
+  
+  // MEJORADO: Búsqueda acotada ±1 km (no ±30 km)
+  const searchFromKm = Math.max(0, curKm - 1.0);
+  const searchToKm = Math.min(totalKm, curKm + 1.0);
+  
   for (const pt of routeKmIndex) {
-    if (pt.km < searchFrom) continue;
-    // Stop searching 30km ahead — if we haven't found a match, something is wrong
-    if (pt.km > curKm + 30) break;
-    const d = hvKm(lat, lng, pt.lat, pt.lng);
-    if (d < minDist) { minDist = d; bestKm = pt.km; }
+    if (pt.km < searchFromKm) continue;
+    if (pt.km > searchToKm) break;
+    
+    const distance = hvKm(lat, lng, pt.lat, pt.lng);
+    if (distance < minDist) {
+      minDist = distance;
+      bestKm = pt.km;
+      bestDeviation = distance;
+    }
   }
+  
+  // VALIDACIÓN: Si está >500m lejos, algo está mal
+  if (bestDeviation > 0.5) {
+    console.warn(`[GPS] Desviación grande: ${(bestDeviation*1000).toFixed(0)}m, retener posición`);
+    return curKm;
+  }
+  
+  // SUAVIZADO: No saltar >200m en una lectura
+  const maxJump = 0.2;
+  if (Math.abs(bestKm - curKm) > maxJump) {
+    bestKm = curKm + Math.sign(bestKm - curKm) * maxJump;
+  }
+  
   return bestKm;
 }
 function sample(arr,n){if(arr.length<=n)return arr;return Array.from({length:n},(_,i)=>arr[Math.round(i*(arr.length-1)/(n-1))]);}
