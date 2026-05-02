@@ -244,7 +244,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.3</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.5</span></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -351,7 +351,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   <div style="font-size:48px;margin-bottom:8px;">⚡</div>
   <div style="font-family:'Orbitron';font-size:20px;font-weight:900;color:var(--green);letter-spacing:3px;margin-bottom:4px;">ELEVDRIVE</div>
   <div style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">EV · PHEV NAVIGATOR</div>
-  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.3</div>
+  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.5</div>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:100%;max-width:380px;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#060a12;border-radius:10px;padding:4px;margin-bottom:20px;">
       <button id="tab-login" onclick="switchAuthTab('login')" style="padding:10px;border-radius:8px;font-family:'Orbitron';font-size:11px;font-weight:700;cursor:pointer;border:none;background:var(--card);color:var(--green);">ENTRAR</button>
@@ -573,6 +573,20 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
       </div>
     </div>
 
+    <!-- PHEV fuel level — only shown for PHEV vehicles -->
+    <div id="fuel-card" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;">
+      <div class="lbl">COMBUSTIBLE INICIAL</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+        <input type="range" id="fuel-sl" min="0" max="100" value="50" step="5"
+          oninput="updFuelLabel()"
+          style="flex:1;accent-color:var(--orange);">
+        <div id="fuel-val" style="font-family:'Orbitron';font-size:18px;font-weight:700;color:var(--orange);min-width:80px;">50% · ~30L</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px;">
+        <span>Vacío</span><span>⛽ Lleno</span>
+      </div>
+    </div>
+
     <button class="btn-main btn-off" id="calc-btn" onclick="calcRoute()" disabled>BUSCA SALIDA Y DESTINO</button>
     <div class="tip">💡 <strong style="color:var(--blue)">Instala la app:</strong> En Chrome toca <strong style="color:var(--text)">⋮ → "Añadir a pantalla de inicio"</strong></div>
   </div>
@@ -600,6 +614,19 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <canvas id="cv1" style="width:100%;height:110px;display:block;border-radius:6px;"></canvas></div>
     <!-- Pre-trip alert -->
     <div id="pretrip-alert" class="alert-box"></div>
+    <!-- Speed selector for demo simulation -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:6px;">
+      <div class="lbl">VELOCIDAD SIMULACIÓN</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+        <input type="range" id="spd-sl" min="40" max="130" value="72" step="5"
+          oninput="updSpdLabel()"
+          style="flex:1;accent-color:var(--blue);">
+        <div id="spd-val" style="font-family:'Orbitron';font-size:18px;font-weight:700;color:var(--blue);min-width:65px;">72 km/h</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px;">
+        <span>40 km/h</span><span>🏎 130 km/h</span>
+      </div>
+    </div>
     <div class="btn2">
       <button class="btn-half" onclick="startDemo()" style="background:rgba(0,255,157,0.1);border-color:rgba(0,255,157,0.35);color:var(--green);">▶ SIMULAR<span>DEMO sin GPS</span></button>
       <button class="btn-half" onclick="startGps()" style="background:rgba(56,200,240,0.1);border-color:rgba(56,200,240,0.35);color:var(--blue);">📍 GPS REAL<span>Modo conducción</span></button>
@@ -695,7 +722,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v5.3</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v5.5</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -756,7 +783,26 @@ function saveVehicle(){
 function updateVehBadge(){
   const t=veh.type==='ev'?'⚡ EV':'🔋 PHEV';
   document.getElementById('veh-desc').textContent=`${t} · ${veh.cap}kWh · ${veh.cons}kWh/100km`;
-  document.getElementById('veh-btn').textContent=`🚗 ${veh.type.toUpperCase()}`;
+  document.getElementById('veh-btn').textContent=`🚗`;
+  // Show fuel slider only for PHEV
+  const fc = document.getElementById('fuel-card');
+  if (fc) fc.style.display = veh.type === 'phev' ? 'block' : 'none';
+}
+
+function updSpdLabel(){
+  const v = parseInt(document.getElementById('spd-sl')?.value || 72);
+  const el = document.getElementById('spd-val');
+  if (el) el.textContent = v + ' km/h';
+  curSpd = v;
+  try { localStorage.setItem('ed_spd', v); } catch(e) {}
+}
+
+function updFuelLabel(){
+  const pct = parseInt(document.getElementById('fuel-sl')?.value || 50);
+  const liters = Math.round(pct / 100 * 60); // Assume 60L tank default
+  const el = document.getElementById('fuel-val');
+  if (el) el.textContent = `${pct}% · ~${liters}L`;
+  try { localStorage.setItem('ed_fuel', pct); } catch(e) {}
 }
 function updBattLabel(){
   const pct=parseInt(document.getElementById('batt-sl').value);
@@ -887,9 +933,15 @@ function generateAlert(fromKm, battPct, spd){
 // ── Route state ───────────────────────────
 let orig=null,dest=null;
 let routePts=[],totalKm=0,routeDur='';
-let curKm=0,battPct=80,sBatt=80,curSpd=72;
+let curKm=0,battPct=80,sBatt=80;
+let curSpd = (() => { try { return parseInt(localStorage.getItem('ed_spd')) || 72; } catch(e) { return 72; } })();
 let routeCoords=[];
 let routeKmIndex=[];
+// GPS Kalman filter state
+let kfLat = null, kfLng = null, kfAccuracy = null;
+const GPS_MIN_ACCURACY = 60;  // meters — ignore if worse
+const GPS_MAX_SPEED = 180;    // km/h — ignore impossible jumps
+let lastGpsTime = 0;
 let map1=null,map2=null,car1=null,car2=null,poly1=null,poly2=null;
 let demoT=null,gpsW=null,lastGps=null;
 let tripConsumed=0,tripRegen=0;
@@ -909,6 +961,33 @@ function slopeAt(km){
 function hvKm(a,b,c,d){const R=6371,r=Math.PI/180,dLa=(c-a)*r,dLo=(d-b)*r,x=Math.sin(dLa/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(dLo/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
 
 // Snap GPS position to nearest point on route — fixes accumulation drift
+// ── GPS Kalman Filter ───────────────────────────────
+function kalmanFilter(lat, lng, accuracy) {
+  if (kfLat === null) { kfLat = lat; kfLng = lng; kfAccuracy = accuracy; return { lat, lng }; }
+  const k = kfAccuracy / (kfAccuracy + Math.max(accuracy, 1));
+  kfLat += k * (lat - kfLat);
+  kfLng += k * (lng - kfLng);
+  kfAccuracy = (1 - k) * kfAccuracy + 3;
+  return { lat: kfLat, lng: kfLng };
+}
+
+function isValidGpsReading(lat, lng, accuracy, timestamp) {
+  if (accuracy > GPS_MIN_ACCURACY) return false;
+  if (lastGps && lastGpsTime > 0) {
+    const dt = (timestamp - lastGpsTime) / 3600000;
+    if (dt > 0 && hvKm(lastGps.lat, lastGps.lng, lat, lng) / dt > GPS_MAX_SPEED) return false;
+  }
+  return true;
+}
+
+function updateGpsSignal(accuracy) {
+  const el = document.getElementById('gps-signal');
+  if (!el) return;
+  if (accuracy <= 20) { el.textContent = '📡 Señal óptima'; el.style.color = 'var(--green)'; }
+  else if (accuracy <= 60) { el.textContent = '📡 Señal buena'; el.style.color = 'var(--yellow)'; }
+  else { el.textContent = '⚠️ Señal débil (' + Math.round(accuracy) + 'm)'; el.style.color = 'var(--red)'; }
+}
+
 function snapToRoute(lat, lng) {
   if (!routeKmIndex.length) return curKm;
   let minDist = Infinity, bestKm = curKm;
@@ -1102,6 +1181,9 @@ function showAlertBox(id,alert){
 
 // ── Maps ──────────────────────────────────
 function initMap(n){
+  // Destroy existing map before recreating to prevent memory leak
+  if (n===1 && map1) { try { map1.remove(); } catch(e){} map1=null; }
+  if (n===2 && map2) { try { map2.remove(); } catch(e){} map2=null; }
   const id='map'+n,existing=n===1?map1:map2;
   if(existing){try{existing.invalidateSize();}catch(e){}drawRoute(n);return;}
   const L=window.L;
@@ -1288,7 +1370,9 @@ function updateUI(){
 // ── Demo ──────────────────────────────────
 function startDemo(){
   sBatt=parseInt(document.getElementById('batt-sl').value);
-  curKm=0; battPct=sBatt; curSpd=72; tripConsumed=0; tripRegen=0;
+  curKm=0; battPct=sBatt;
+  curSpd = parseInt(document.getElementById('spd-sl')?.value || localStorage.getItem('ed_spd') || 72);
+  tripConsumed=0; tripRegen=0;
   show('driving'); document.getElementById('spd-card').style.display='none';
   setTimeout(()=>{initMap(2);updateUI();},250);
   demoT=setInterval(()=>{
@@ -1317,11 +1401,27 @@ function startGps(){
     curSpd=pos.coords.speed!=null?+(pos.coords.speed*3.6).toFixed(0):curSpd;
     document.getElementById('d-spd').innerHTML=`${curSpd} <span style="font-size:13px;color:var(--muted);">km/h</span>`;
     if(lastGps){
-      const d=hvKm(lastGps.lat,lastGps.lng,pos.coords.latitude,pos.coords.longitude);
+      const rawLat = pos.coords.latitude;
+      const rawLng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy || 999;
+      const timestamp = pos.timestamp || Date.now();
+
+      // Validate GPS reading quality
+      if (!isValidGpsReading(rawLat, rawLng, accuracy, timestamp)) {
+        updateGpsSignal(accuracy);
+        return; // Skip this reading
+      }
+      updateGpsSignal(accuracy);
+      lastGpsTime = timestamp;
+
+      // Apply Kalman filter to smooth position
+      const smooth = kalmanFilter(rawLat, rawLng, accuracy);
+      const d = hvKm(lastGps.lat, lastGps.lng, smooth.lat, smooth.lng);
+
       if(d>0.01){
-        // Snap to nearest route point — elimina acumulación de deriva GPS
-        const snapped=snapToRoute(pos.coords.latitude,pos.coords.longitude);
-        if(snapped>curKm-1) curKm=Math.min(snapped,totalKm);
+        // Snap smoothed position to nearest route point
+        const snapped = snapToRoute(smooth.lat, smooth.lng);
+        if(snapped > curKm - 1) curKm = Math.min(snapped, totalKm);
         const sl=slopeAt(curKm), delta=kwhPerKm(sl,curSpd)*d;
         const isH=veh.type==='phev'&&battPct<=veh.hThresh;
         let effDelta=isH?delta*(veh.hCons/veh.cons):delta;
@@ -1332,7 +1432,7 @@ function startGps(){
         updateUI();
       }
     }
-    lastGps={lat:pos.coords.latitude,lng:pos.coords.longitude};
+    lastGps={lat:smooth.lat,lng:smooth.lng};
   },err=>alert('GPS: '+err.message),{enableHighAccuracy:true,maximumAge:1500,timeout:10000});
 }
 
@@ -1477,9 +1577,59 @@ let selectedAvatar = '🧑';
 function saveSession(session) {
   currentSession = session;
   try { localStorage.setItem('ed_session', JSON.stringify(session)); } catch(e) {}
+  scheduleTokenRefresh();
+}
+
+let refreshTimer = null;
+function scheduleTokenRefresh() {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  // Refresh 5 minutes before expiry (Supabase tokens last 1 hour)
+  refreshTimer = setTimeout(async () => {
+    await refreshToken();
+  }, 55 * 60 * 1000); // 55 minutes
+}
+
+async function refreshToken() {
+  if (!currentSession?.refresh_token) return;
+  try {
+    const res = await fetch('/.netlify/functions/auth', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action: 'refresh', refresh_token: currentSession.refresh_token })
+    });
+    const data = await res.json();
+    if (data.session) {
+      saveSession(data.session);
+      console.log('Token refreshed successfully');
+    } else {
+      throw new Error('Refresh failed');
+    }
+  } catch(e) {
+    console.warn('Token refresh failed — user may need to re-login');
+    // Only force logout if refresh_token is completely invalid
+    if (e.message.includes('invalid') || e.message.includes('expired')) {
+      doLogout();
+      showToast('Sesión expirada. Por favor inicia sesión de nuevo.', 'red');
+    }
+  }
 }
 function loadSession() {
   try { return JSON.parse(localStorage.getItem('ed_session') || 'null'); } catch(e) { return null; }
+}
+
+// Auto-refresh interceptor for fetch calls to Netlify functions
+async function authFetch(url, opts = {}) {
+  const res = await fetch(url, opts);
+  if (res.status === 401 && currentSession?.refresh_token) {
+    // Token expired — try to refresh and retry once
+    await refreshToken();
+    if (currentSession?.access_token) {
+      // Update authorization header and retry
+      const newOpts = { ...opts };
+      if (newOpts.headers) newOpts.headers['Authorization'] = 'Bearer ' + currentSession.access_token;
+      return fetch(url, newOpts);
+    }
+  }
+  return res;
 }
 function clearSession() {
   currentSession = null; currentProfile = null;
@@ -1815,6 +1965,7 @@ async function initApp() {
   if (session?.access_token) {
     currentSession = session;
     const profile = loadProfile();
+    scheduleTokenRefresh(); // Start refresh cycle for existing session
     if (profile) {
       selectProfile(profile);
     } else {
@@ -1955,18 +2106,49 @@ async function requestNotifPermission() {
     showToast('Tu navegador no soporta notificaciones', 'red');
     return;
   }
+  // TOGGLE: if already enabled, disable
+  if (notifEnabled) {
+    notifEnabled = false;
+    try { localStorage.setItem('ed_notif', '0'); } catch(e) {}
+    showToast('🔕 Notificaciones desactivadas', 'red');
+    updateNotifBtn();
+    return;
+  }
+  // Check current permission state first
+  if (Notification.permission === 'denied') {
+    showToast('⚠️ Permisos bloqueados. Ve a Ajustes → Chrome → Notificaciones para activarlas.', 'red');
+    return;
+  }
+  // Request permission
   const perm = await Notification.requestPermission();
   notifEnabled = perm === 'granted';
   try { localStorage.setItem('ed_notif', notifEnabled ? '1' : '0'); } catch(e) {}
-  showToast(notifEnabled ? '✅ Notificaciones activadas' : 'Notificaciones denegadas', notifEnabled ? 'green' : 'red');
+  if (notifEnabled) {
+    showToast('✅ Notificaciones activadas', 'green');
+    // Send test notification
+    try {
+      new Notification('ElevDrive', { body: '✅ Notificaciones funcionando correctamente' });
+    } catch(e) {}
+  } else {
+    showToast('Permiso denegado por el sistema', 'red');
+  }
   updateNotifBtn();
 }
 
 function loadNotifPref() {
   try {
     const saved = localStorage.getItem('ed_notif');
-    if (saved === '1' && Notification.permission === 'granted') notifEnabled = true;
-  } catch(e) {}
+    // Only mark as enabled if BOTH saved pref AND browser permission are granted
+    if (saved === '1' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      notifEnabled = true;
+    } else {
+      notifEnabled = false;
+      // Sync stored pref with actual permission state
+      if (saved === '1' && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        localStorage.setItem('ed_notif', '0');
+      }
+    }
+  } catch(e) { notifEnabled = false; }
 }
 
 function updateNotifBtn() {
