@@ -11,14 +11,18 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Barlow+Condensed:wght@300;400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-:root{--bg:#060a12;--card:#0d1824;--border:#1a2a3a;--green:#00ff9d;--blue:#38c8f0;--yellow:#fbbf24;--red:#f87171;--orange:#fb923c;--text:#e2e8f0;--muted:#4a6a8a;}
+:root{--bg:#060a12;--card:#0d1824;--border:#1a2a3a;--green:#00ff9d;--blue:#38c8f0;--yellow:#fbbf24;--red:#f87171;--orange:#fb923c;--text:#e2e8f0;--muted:#6a8aaa;}
+/* Theme: light */
+[data-theme="light"]{--bg:#f0f4f8;--card:#ffffff;--border:#c8d8e8;--text:#0d1f2d;--muted:#4a6080;--blue:#0066cc;--green:#00956b;--yellow:#c47a00;--red:#cc2200;--orange:#c45000;}
+/* Theme: midnight (extra dark) */
+[data-theme="midnight"]{--bg:#000000;--card:#0a0a0f;--border:#1a1a2a;--text:#c8d8e8;--muted:#405060;--green:#00ff9d;--blue:#38c8f0;--yellow:#fbbf24;--red:#f87171;}
 @media (prefers-color-scheme: light) {
   :root {
     --bg: #f0f4f8;
     --card: #ffffff;
     --border: #d0dbe8;
     --text: #0f2035;
-    --muted: #4a6080;
+    --muted: #3a5070;
     --blue: #0066cc;
     --green: #00a86b;
     --yellow: #d4800a;
@@ -240,12 +244,13 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.1</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.2</span></div>
     </div>
   </div>
   <div class="hdr-right">
     <div id="profile-badge" onclick="showProfiles()"><span id="profile-badge-avatar">🧑</span><span id="profile-badge-name">PERFIL</span></div>
     <button id="veh-btn" onclick="openVehModal()">🚗 VEHÍCULO</button>
+    <button onclick="openSettings()" style="font-family:'Orbitron';font-size:14px;padding:5px 8px;border-radius:8px;background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;" title="Configuración">⚙</button>
     <button id="notif-btn" onclick="requestNotifPermission()" style="font-family:'Orbitron';font-size:9px;font-weight:700;letter-spacing:1px;padding:6px 8px;border-radius:8px;background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;">🔕 Alertas</button>
     <button id="back-btn" onclick="resetAll()">← RUTA</button>
   </div>
@@ -346,7 +351,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   <div style="font-size:48px;margin-bottom:8px;">⚡</div>
   <div style="font-family:'Orbitron';font-size:20px;font-weight:900;color:var(--green);letter-spacing:3px;margin-bottom:4px;">ELEVDRIVE</div>
   <div style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">EV · PHEV NAVIGATOR</div>
-  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.1</div>
+  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.2</div>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:100%;max-width:380px;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#060a12;border-radius:10px;padding:4px;margin-bottom:20px;">
       <button id="tab-login" onclick="switchAuthTab('login')" style="padding:10px;border-radius:8px;font-family:'Orbitron';font-size:11px;font-weight:700;cursor:pointer;border:none;background:var(--card);color:var(--green);">ENTRAR</button>
@@ -380,6 +385,49 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <button onclick="sendPasswordReset()" style="width:100%;padding:14px;border-radius:10px;font-family:'Orbitron';font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;background:linear-gradient(135deg,rgba(56,200,240,0.15),rgba(56,200,240,0.25));border:1px solid rgba(56,200,240,0.4);color:var(--blue);margin-bottom:12px;">ENVIAR ENLACE ✉️</button>
     <div id="forgot-msg" style="font-size:12px;text-align:center;min-height:18px;color:var(--green);"></div>
     <button onclick="closeForgot()" style="width:100%;padding:11px;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;margin-top:6px;">Cancelar</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" onclick="if(event.target===this)closeSettings()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:700;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--card);border-radius:18px 18px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;border-top:1px solid var(--border);">
+    <div style="font-family:'Orbitron';font-size:14px;font-weight:700;color:var(--text);margin-bottom:20px;letter-spacing:2px;">⚙ CONFIGURACIÓN</div>
+
+    <div style="font-family:'Orbitron';font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;">TEMA VISUAL</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;">
+      <div onclick="setTheme('dark')" id="theme-dark" style="padding:12px 8px;border-radius:10px;border:2px solid var(--border);text-align:center;cursor:pointer;background:#060a12;">
+        <div style="font-size:20px;margin-bottom:4px;">🌑</div>
+        <div style="font-size:10px;font-family:'Orbitron';color:#e2e8f0;font-weight:700;">OSCURO</div>
+      </div>
+      <div onclick="setTheme('light')" id="theme-light" style="padding:12px 8px;border-radius:10px;border:2px solid var(--border);text-align:center;cursor:pointer;background:#f0f4f8;">
+        <div style="font-size:20px;margin-bottom:4px;">☀️</div>
+        <div style="font-size:10px;font-family:'Orbitron';color:#0d1f2d;font-weight:700;">CLARO</div>
+      </div>
+      <div onclick="setTheme('midnight')" id="theme-midnight" style="padding:12px 8px;border-radius:10px;border:2px solid var(--border);text-align:center;cursor:pointer;background:#000;">
+        <div style="font-size:20px;margin-bottom:4px;">🌌</div>
+        <div style="font-size:10px;font-family:'Orbitron';color:#c8d8e8;font-weight:700;">MIDNIGHT</div>
+      </div>
+    </div>
+
+    <div style="font-family:'Orbitron';font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:10px;">ALERTAS Y SONIDOS</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:12px 14px;border-radius:10px;border:1px solid var(--border);">
+        <div>
+          <div style="font-size:13px;color:var(--text);font-weight:600;">Notificaciones push</div>
+          <div style="font-size:11px;color:var(--muted);">Alertas de conducción en segundo plano</div>
+        </div>
+        <button id="s-notif-btn" onclick="requestNotifPermission()" style="font-family:'Orbitron';font-size:9px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer;white-space:nowrap;">🔕 OFF</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:12px 14px;border-radius:10px;border:1px solid var(--border);">
+        <div>
+          <div style="font-size:13px;color:var(--text);font-weight:600;">Sonidos de conducción</div>
+          <div style="font-size:11px;color:var(--muted);">Tono al regenerar, subida fuerte, llegada</div>
+        </div>
+        <button id="s-sound-btn" onclick="toggleSound()" style="font-family:'Orbitron';font-size:9px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--muted);cursor:pointer;white-space:nowrap;">🔇 OFF</button>
+      </div>
+    </div>
+
+    <button onclick="closeSettings()" style="width:100%;padding:13px;background:linear-gradient(135deg,rgba(56,200,240,0.12),rgba(56,200,240,0.22));border:1px solid rgba(56,200,240,0.4);border-radius:10px;font-family:'Orbitron';font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;letter-spacing:1px;">LISTO ✓</button>
   </div>
 </div>
 
@@ -647,7 +695,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v5.1</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v5.2</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -1077,8 +1125,11 @@ function drawRoute(n){
   if(n===1)car1=cm;else car2=cm;
 }
 function moveCar(){
-  if(!car2||!routePts.length)return;
-  const pt=routePts.reduce((a,b)=>Math.abs(b.km-curKm)<Math.abs(a.km-curKm)?b:a);
+  if(!car2)return;
+  // Use full routeKmIndex for precise position (not the 80-point sample)
+  const src = routeKmIndex.length ? routeKmIndex : routePts;
+  if(!src.length)return;
+  const pt = src.reduce((a,b)=>Math.abs(b.km-curKm)<Math.abs(a.km-curKm)?b:a);
   if(pt?.lat)try{car2.setLatLng([pt.lat,pt.lng]);}catch(e){}
 }
 
@@ -1159,6 +1210,14 @@ function updateUI(){
   if (rec.alert && rec.alert !== lastAlertSent) {
     const alertMsgs={'PRECAUCIÓN':'Batería baja — revisa autonomía restante','NO LLEGAS':'⚠️ Batería insuficiente para llegar al destino','REGENERAR ↘↘':'Descenso fuerte — activa frenado regenerativo al máximo','REGENERAR ↘':'Bajada — activa frenado regenerativo','ASCENSO FUERTE':'Subida pronunciada — reduce velocidad para eficiencia','ASCENSO':'Subida — consumo aumentará en este tramo'};
     sendAlertNotif('ElevDrive: '+(rec.alert||rec.text), alertMsgs[rec.alert]||rec.sub||'');
+    // Play sound based on alert type
+    if (rec.text === 'REGENERAR' && lastSoundAlert !== 'regen') {
+      playSound('regen'); lastSoundAlert = 'regen';
+    } else if ((rec.text === 'SUBIDA FUERTE' || rec.text === 'SUBIENDO') && lastSoundAlert !== 'climb') {
+      playSound('climb'); lastSoundAlert = 'climb';
+    } else if (rec.text === 'RUTA PLANA') {
+      lastSoundAlert = '';
+    }
   }
   document.getElementById('rec-text').style.color=rec.color;
   document.getElementById('rec-sub').textContent=rec.sub;
@@ -1284,6 +1343,7 @@ function finishRoute(){
     `📏 Distancia: <strong style="color:var(--text)">${totalKm.toFixed(1)} km<\/strong><br>`+
     `⚡ Eficiencia: <strong style="color:var(--text)">${(tripConsumed/totalKm*100).toFixed(1)} kWh/100km<\/strong>`;
   show('done');
+  playSound('arrive');
   // Show calibration modal if user is logged in with a profile
   if (currentSession && currentProfile) {
     const tripData = {
@@ -1740,7 +1800,9 @@ async function initApp() {
       });
     }
   } catch(e) {}
+  loadTheme();
   loadNotifPref(); updateNotifBtn();
+  loadSoundPref();
   const session = loadSession();
   if (session?.access_token) {
     currentSession = session;
@@ -1753,6 +1815,127 @@ async function initApp() {
   } else {
     document.getElementById('auth-screen').style.display = 'flex';
   }
+}
+
+// ── Theme System ──────────────────────────────────
+let currentTheme = 'dark';
+
+function setTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.setAttribute('data-theme', theme === 'dark' ? '' : theme);
+  try { localStorage.setItem('ed_theme', theme); } catch(e) {}
+  // Update theme selector UI
+  ['dark','light','midnight'].forEach(t => {
+    const el = document.getElementById('theme-'+t);
+    if (el) el.style.borderColor = t === theme ? 'var(--green)' : 'var(--border)';
+  });
+}
+
+function loadTheme() {
+  try {
+    const saved = localStorage.getItem('ed_theme');
+    if (saved) setTheme(saved);
+    else {
+      // Auto-detect system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(prefersDark ? 'dark' : 'light');
+    }
+  } catch(e) {}
+}
+
+function openSettings() {
+  // Sync notif button state
+  const nb = document.getElementById('s-notif-btn');
+  if (nb) { nb.textContent = notifEnabled ? '🔔 ON' : '🔕 OFF'; nb.style.color = notifEnabled ? 'var(--green)' : 'var(--muted)'; }
+  const sb = document.getElementById('s-sound-btn');
+  if (sb) { sb.textContent = soundEnabled ? '🔊 ON' : '🔇 OFF'; sb.style.color = soundEnabled ? 'var(--green)' : 'var(--muted)'; }
+  // Highlight current theme
+  ['dark','light','midnight'].forEach(t => {
+    const el = document.getElementById('theme-'+t);
+    if (el) el.style.borderColor = t === currentTheme ? 'var(--green)' : 'var(--border)';
+  });
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').style.display = 'none';
+}
+
+// ── Sound System ───────────────────────────────────
+let soundEnabled = false;
+let audioCtx = null;
+let lastSoundAlert = '';
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  try { localStorage.setItem('ed_sound', soundEnabled ? '1' : '0'); } catch(e) {}
+  const btn = document.getElementById('s-sound-btn');
+  if (btn) { btn.textContent = soundEnabled ? '🔊 ON' : '🔇 OFF'; btn.style.color = soundEnabled ? 'var(--green)' : 'var(--muted)'; }
+  if (soundEnabled) {
+    // Init AudioContext on user gesture
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    playSound('confirm');
+  }
+}
+
+function loadSoundPref() {
+  try {
+    if (localStorage.getItem('ed_sound') === '1') {
+      soundEnabled = true;
+      const btn = document.getElementById('s-sound-btn');
+      if (btn) { btn.textContent = '🔊 ON'; btn.style.color = 'var(--green)'; }
+    }
+  } catch(e) {}
+}
+
+function playSound(type) {
+  if (!soundEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    if (type === 'regen') {
+      // Ascending tone — charging sound
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.linearRampToValueAtTime(600, now + 0.3);
+      osc.frequency.linearRampToValueAtTime(900, now + 0.6);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.7);
+      osc.start(now); osc.stop(now + 0.7);
+    } else if (type === 'climb') {
+      // Warning pulse
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.setValueAtTime(330, now + 0.15);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.3);
+      osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'arrive') {
+      // Arrival chime — 3 ascending notes
+      [0, 0.2, 0.4].forEach((t, i) => {
+        const o2 = audioCtx.createOscillator();
+        const g2 = audioCtx.createGain();
+        o2.connect(g2); g2.connect(audioCtx.destination);
+        o2.type = 'sine';
+        o2.frequency.setValueAtTime([523, 659, 784][i], now + t);
+        g2.gain.setValueAtTime(0.15, now + t);
+        g2.gain.linearRampToValueAtTime(0, now + t + 0.3);
+        o2.start(now + t); o2.stop(now + t + 0.3);
+      });
+    } else if (type === 'confirm') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523, now);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.2);
+      osc.start(now); osc.stop(now + 0.2);
+    }
+  } catch(e) { console.warn('Sound error:', e); }
 }
 
 // ── Push Notifications ───────────────────────────
@@ -1780,10 +1963,9 @@ function loadNotifPref() {
 
 function updateNotifBtn() {
   const btn = document.getElementById('notif-btn');
-  if (!btn) return;
-  btn.textContent = notifEnabled ? '🔔 Alertas ON' : '🔕 Alertas OFF';
-  btn.style.borderColor = notifEnabled ? 'var(--green)' : 'var(--border)';
-  btn.style.color = notifEnabled ? 'var(--green)' : 'var(--muted)';
+  if (btn) { btn.textContent = notifEnabled ? '🔔 ON' : '🔕 OFF'; btn.style.color = notifEnabled ? 'var(--green)' : 'var(--muted)'; }
+  const sbtn = document.getElementById('s-notif-btn');
+  if (sbtn) { sbtn.textContent = notifEnabled ? '🔔 ON' : '🔕 OFF'; sbtn.style.color = notifEnabled ? 'var(--green)' : 'var(--muted)'; }
 }
 
 function sendAlertNotif(title, body) {
