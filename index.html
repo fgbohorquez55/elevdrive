@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>ElevDrive ⚡</title>
@@ -35,7 +35,7 @@
   .screen { background: var(--bg); }
 }
 html,body{background:var(--bg);color:var(--text);font-family:'Barlow Condensed','Arial Narrow',sans-serif;height:100%;overflow:hidden;}
-#app{max-width:480px;margin:0 auto;height:100vh;display:flex;flex-direction:column;}
+#app{max-width:480px;margin:0 auto;height:100vh;height:100dvh;display:flex;flex-direction:column;}
 .num{font-family:'Orbitron',monospace;}
 /* Header */
 #header{display:flex;justify-content:space-between;align-items:center;padding:11px 16px 9px;border-bottom:1px solid #0f1e2e;flex-shrink:0;background:var(--bg);z-index:100;}
@@ -43,7 +43,7 @@ html,body{background:var(--bg);color:var(--text);font-family:'Barlow Condensed',
 .logo-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#00ff9d1a,#00ff9d33);border:1px solid #00ff9d44;display:flex;align-items:center;justify-content:center;font-size:16px;}
 .logo-name{font-family:'Orbitron';font-size:13px;font-weight:700;color:var(--green);letter-spacing:2px;}
 .logo-sub{font-size:9px;color:var(--muted);letter-spacing:1px;}
-.hdr-right{display:flex;align-items:center;gap:8px;}
+.hdr-right{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;overflow:hidden;}
 #back-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--muted);font-size:10px;font-family:'Orbitron';cursor:pointer;display:none;}
 #veh-btn{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;padding:5px 10px;color:var(--yellow);font-size:10px;font-family:'Orbitron';cursor:pointer;letter-spacing:1px;}
 #progress-bar{height:3px;background:#0f1e2e;flex-shrink:0;display:none;}
@@ -211,9 +211,9 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
 .add-profile-btn{background:rgba(56,200,240,0.08);border:1px dashed rgba(56,200,240,0.3);border-radius:13px;padding:16px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;color:var(--blue);font-size:14px;}
 .logout-btn{margin-top:16px;padding:12px;background:none;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-family:'Orbitron';font-size:11px;cursor:pointer;width:100%;}
 /* Profile badge in header */
-#profile-badge{display:none;align-items:center;gap:6px;background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.2);border-radius:8px;padding:4px 10px;cursor:pointer;}
+#profile-badge{display:none;align-items:center;gap:4px;background:rgba(0,255,157,0.08);border:1px solid rgba(0,255,157,0.2);border-radius:8px;padding:4px 7px;cursor:pointer;max-width:110px;}
 #profile-badge-avatar{font-size:16px;}
-#profile-badge-name{font-size:11px;color:var(--green);font-family:'Orbitron';font-weight:700;}
+#profile-badge-name{font-size:10px;color:var(--green);font-family:'Orbitron';font-weight:700;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 /* New profile modal */
 #new-profile-modal{position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:600;display:none;align-items:flex-end;justify-content:center;}
 #new-profile-modal.open{display:flex;}
@@ -244,12 +244,12 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.2</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.3</span></div>
     </div>
   </div>
   <div class="hdr-right">
     <div id="profile-badge" onclick="showProfiles()"><span id="profile-badge-avatar">🧑</span><span id="profile-badge-name">PERFIL</span></div>
-    <button id="veh-btn" onclick="openVehModal()">🚗 VEHÍCULO</button>
+    <button id="veh-btn" onclick="openVehModal()" style="font-size:18px;padding:5px 8px;border-radius:8px;background:none;border:1px solid var(--border);cursor:pointer;">🚗</button>
     <button onclick="openSettings()" style="font-family:'Orbitron';font-size:14px;padding:5px 8px;border-radius:8px;background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;" title="Configuración">⚙</button>
     <button id="notif-btn" onclick="requestNotifPermission()" style="font-family:'Orbitron';font-size:9px;font-weight:700;letter-spacing:1px;padding:6px 8px;border-radius:8px;background:none;border:1px solid var(--border);color:var(--muted);cursor:pointer;">🔕 Alertas</button>
     <button id="back-btn" onclick="resetAll()">← RUTA</button>
@@ -351,7 +351,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   <div style="font-size:48px;margin-bottom:8px;">⚡</div>
   <div style="font-family:'Orbitron';font-size:20px;font-weight:900;color:var(--green);letter-spacing:3px;margin-bottom:4px;">ELEVDRIVE</div>
   <div style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">EV · PHEV NAVIGATOR</div>
-  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.2</div>
+  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.3</div>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:100%;max-width:380px;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#060a12;border-radius:10px;padding:4px;margin-bottom:20px;">
       <button id="tab-login" onclick="switchAuthTab('login')" style="padding:10px;border-radius:8px;font-family:'Orbitron';font-size:11px;font-weight:700;cursor:pointer;border:none;background:var(--card);color:var(--green);">ENTRAR</button>
@@ -485,7 +485,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
 </div>
 
 
-<div id="content-wrap" style="flex:1;overflow-y:auto;padding:13px 15px;display:flex;flex-direction:column;gap:10px;">
+<div id="content-wrap" style="flex:1;overflow-y:auto;padding:13px 15px 80px 15px;display:flex;flex-direction:column;gap:10px;">
   <div id="err-box" style="display:none;background:rgba(248,113,113,0.09);border:1px solid rgba(248,113,113,0.3);border-radius:12px;padding:11px 14px;color:#f87171;font-size:13px;"></div>
 
   <div id="loading-wrap">
@@ -695,7 +695,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v5.2</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v5.3</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -1207,19 +1207,27 @@ function updateUI(){
   rc.style.background=rec.bg; rc.style.border=`1px solid ${rec.color}33`; rc.style.boxShadow=rec.glow;
   document.getElementById('rec-icon').textContent=rec.icon; document.getElementById('rec-icon').style.color=rec.color;
   document.getElementById('rec-text').textContent=rec.text;
-  if (rec.alert && rec.alert !== lastAlertSent) {
-    const alertMsgs={'PRECAUCIÓN':'Batería baja — revisa autonomía restante','NO LLEGAS':'⚠️ Batería insuficiente para llegar al destino','REGENERAR ↘↘':'Descenso fuerte — activa frenado regenerativo al máximo','REGENERAR ↘':'Bajada — activa frenado regenerativo','ASCENSO FUERTE':'Subida pronunciada — reduce velocidad para eficiencia','ASCENSO':'Subida — consumo aumentará en este tramo'};
-    sendAlertNotif('ElevDrive: '+(rec.alert||rec.text), alertMsgs[rec.alert]||rec.sub||'');
-    // Play sound based on alert type
-    if (rec.text === 'REGENERAR' && lastSoundAlert !== 'regen') {
-      playSound('regen'); lastSoundAlert = 'regen';
-    } else if ((rec.text === 'SUBIDA FUERTE' || rec.text === 'SUBIENDO') && lastSoundAlert !== 'climb') {
-      playSound('climb'); lastSoundAlert = 'climb';
-    } else if (rec.text === 'RUTA PLANA') {
-      lastSoundAlert = '';
+  // Trigger sounds based on rec.text (rec.alert doesn't exist in getRec)
+  if (rec.text !== lastAlertSent) {
+    lastAlertSent = rec.text;
+    if (rec.text === 'REGENERAR') {
+      playSound('regen');
+    } else if (rec.text === 'SUBIDA FUERTE') {
+      playSound('climb');
+    }
+    // Push notification
+    const alertMsgs = {
+      'REGENERAR': 'Descenso — activa el frenado regenerativo',
+      'SUBIDA FUERTE': 'Subida pronunciada — reduce velocidad para eficiencia',
+      'SUBIENDO': 'Subida — el consumo aumentará',
+      'NO LLEGAS': '⚠️ Batería insuficiente para llegar al destino',
+      'PRECAUCIÓN': 'Batería baja — revisa autonomía restante'
+    };
+    if (alertMsgs[rec.text]) {
+      sendAlertNotif('ElevDrive: ' + rec.text, alertMsgs[rec.text]);
     }
   }
-  document.getElementById('rec-text').style.color=rec.color;
+    document.getElementById('rec-text').style.color=rec.color;
   document.getElementById('rec-sub').textContent=rec.sub;
 
   // Metrics
