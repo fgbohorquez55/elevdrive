@@ -240,7 +240,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <div class="logo-icon">⚡</div>
     <div>
       <div class="logo-name">ELEVDRIVE</div>
-      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.0</span></div>
+      <div class="logo-sub">EV · PHEV NAVIGATOR <span style="color:#fbbf24;letter-spacing:0;">v5.1</span></div>
     </div>
   </div>
   <div class="hdr-right">
@@ -345,7 +345,8 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
 <div id="auth-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
   <div style="font-size:48px;margin-bottom:8px;">⚡</div>
   <div style="font-family:'Orbitron';font-size:20px;font-weight:900;color:var(--green);letter-spacing:3px;margin-bottom:4px;">ELEVDRIVE</div>
-  <div style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:32px;">EV · PHEV NAVIGATOR</div>
+  <div style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">EV · PHEV NAVIGATOR</div>
+  <div style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:28px;opacity:0.6;">v5.1</div>
   <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 20px;width:100%;max-width:380px;">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#060a12;border-radius:10px;padding:4px;margin-bottom:20px;">
       <button id="tab-login" onclick="switchAuthTab('login')" style="padding:10px;border-radius:8px;font-family:'Orbitron';font-size:11px;font-weight:700;cursor:pointer;border:none;background:var(--card);color:var(--green);">ENTRAR</button>
@@ -355,6 +356,21 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
     <input id="auth-pass" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter')doAuth()" style="width:100%;background:#060a12;border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-size:15px;font-family:'Barlow Condensed';outline:none;margin-bottom:12px;">
     <button id="auth-btn" onclick="doAuth()" style="width:100%;padding:14px;border-radius:10px;font-family:'Orbitron';font-size:12px;font-weight:700;letter-spacing:2px;cursor:pointer;border:none;background:linear-gradient(135deg,rgba(0,255,157,0.15),rgba(0,255,157,0.25));color:var(--green);">ENTRAR</button>
     <div id="auth-err" style="font-size:12px;color:var(--red);margin-top:8px;text-align:center;min-height:18px;"></div>
+    <div id="forgot-wrap" style="text-align:center;margin-top:10px;">
+      <span onclick="showForgotPassword()" style="font-size:11px;color:var(--muted);cursor:pointer;text-decoration:underline;">¿Olvidaste tu contraseña?</span>
+    </div>
+  </div>
+</div>
+
+<!-- FORGOT PASSWORD MODAL -->
+<div id="forgot-modal" onclick="if(event.target===this)closeForgot()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:600;align-items:flex-end;justify-content:center;">
+  <div style="background:#0a1520;border-radius:18px 18px 0 0;padding:28px 20px 40px;width:100%;max-width:480px;">
+    <div style="font-family:'Orbitron';font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;">RECUPERAR CONTRASEÑA</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5;">Escribe tu correo y te enviaremos un enlace para crear una nueva contraseña.</div>
+    <input id="forgot-email" type="email" placeholder="correo@ejemplo.com" style="width:100%;background:#060a12;border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:14px;">
+    <button onclick="sendPasswordReset()" style="width:100%;padding:14px;border-radius:10px;font-family:'Orbitron';font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;background:linear-gradient(135deg,rgba(56,200,240,0.15),rgba(56,200,240,0.25));border:1px solid rgba(56,200,240,0.4);color:var(--blue);margin-bottom:12px;">ENVIAR ENLACE ✉️</button>
+    <div id="forgot-msg" style="font-size:12px;text-align:center;min-height:18px;color:var(--green);"></div>
+    <button onclick="closeForgot()" style="width:100%;padding:11px;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;margin-top:6px;">Cancelar</button>
   </div>
 </div>
 
@@ -622,7 +638,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:4px;}
   </div>
 </div>
 
-<div id="footer"><span>ElevDrive v5.0</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
+<div id="footer"><span>ElevDrive v5.1</span><span>Netlify Functions · ORS · Leaflet</span><span>ADL</span></div>
 </div>
 
 <script>window.onerror = function(msg, src, line, col, err) {
@@ -1327,6 +1343,49 @@ async function useGpsAsOrigin() {
 }
 
 
+// ── Forgot Password ──────────────────────────
+function showForgotPassword() {
+  const emailEl = document.getElementById('auth-email');
+  const forgotEmail = document.getElementById('forgot-email');
+  if (emailEl && forgotEmail) forgotEmail.value = emailEl.value || '';
+  document.getElementById('forgot-msg').textContent = '';
+  document.getElementById('forgot-modal').style.display = 'flex';
+}
+function closeForgot() {
+  document.getElementById('forgot-modal').style.display = 'none';
+}
+async function sendPasswordReset() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const msgEl = document.getElementById('forgot-msg');
+  if (!email || !email.includes('@')) {
+    msgEl.style.color = 'var(--red)';
+    msgEl.textContent = 'Escribe un correo válido';
+    return;
+  }
+  msgEl.style.color = 'var(--muted)';
+  msgEl.textContent = 'Enviando...';
+  try {
+    const res = await fetch('/.netlify/functions/auth', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ action: 'reset', email })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    msgEl.style.color = 'var(--green)';
+    msgEl.textContent = '✅ Revisa tu correo — tienes 15 minutos para cambiar tu contraseña.';
+    setTimeout(closeForgot, 4000);
+  } catch(e) {
+    const msg = e.message || '';
+    msgEl.style.color = 'var(--red)';
+    if (msg === 'Failed to fetch' || msg === 'fetch failed') {
+      msgEl.textContent = '⚠️ Sin conexión. Verifica tu internet.';
+    } else {
+      msgEl.textContent = msg || '⚠️ Error. Intenta de nuevo.';
+    }
+  }
+}
+
 // ── Auth & Profile State ──────────────────
 let currentSession = null;
 let chartZoomKm = 0; // 0 = full route, >0 = show only next N km
@@ -1416,12 +1475,18 @@ async function doAuth() {
     showProfiles();
   } catch(e) {
     const msg = e.message || '';
-    if (authMode === 'login' && (msg.includes('incorrectos') || msg.includes('Invalid') || msg.includes('invalid'))) {
-      errEl.textContent = 'Correo no registrado o contraseña incorrecta. Toca REGISTRARSE.';
+    const isNetwork = msg === 'Failed to fetch' || msg === 'fetch failed'
+                   || msg.includes('NetworkError') || msg.includes('network');
+    if (isNetwork) {
+      errEl.textContent = '⚠️ Sin conexión al servidor. Verifica tu internet y vuelve a intentar.';
+    } else if (authMode === 'login' && (msg.includes('incorrectos') || msg.toLowerCase().includes('invalid'))) {
+      errEl.textContent = 'Contraseña incorrecta o correo no registrado.';
       errEl.style.cursor = 'pointer';
       errEl.onclick = () => switchAuthTab('register');
+    } else if (msg.includes('sesión') || msg.toLowerCase().includes('session')) {
+      errEl.textContent = '⚠️ No se pudo iniciar sesión. Intenta de nuevo.';
     } else {
-      errEl.textContent = msg;
+      errEl.textContent = msg || '⚠️ Error desconocido. Intenta de nuevo.';
     }
   }
   btn.disabled = false;
