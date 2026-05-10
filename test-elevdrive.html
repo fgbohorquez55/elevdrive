@@ -280,6 +280,88 @@ test('8. AbortSignal.timeout soporte', async()=>{
   }
 });
 
+
+test('9. Elevación completa — simulación ruta real', async()=>{
+  // Simula exactamente lo que hace el index.html:
+  // 1. Construye geo con 500 puntos (como OSRM Bogotá→Medellín)
+  // 2. Llama Open-Meteo a 100 muestras
+  // 3. Interpola a todos los puntos
+  // 4. Verifica que el resultado tiene elevación real
+
+  // Geo simulado: ruta Bogotá→Medellín (lat/lng interpolados)
+  const geo = [];
+  for(let i=0;i<500;i++){
+    const t=i/499;
+    geo.push([4.6097+t*(6.2518-4.6097), -74.0817+t*(-75.5636+74.0817), 0]);
+  }
+
+  // Exactamente el mismo código que enrichElevationSync en index.html
+  const MAX=100;
+  const step=Math.max(1,Math.floor(geo.length/MAX));
+  const idxs=[];
+  for(let i=0;i<geo.length;i+=step) idxs.push(i);
+  if(idxs[idxs.length-1]!==geo.length-1) idxs.push(geo.length-1);
+  const lats=idxs.map(i=>geo[i][0].toFixed(4)).join(',');
+  const lngs=idxs.map(i=>geo[i][1].toFixed(4)).join(',');
+
+  const t0=Date.now();
+  const r=await fetch(
+    `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`,
+    {signal:AbortSignal.timeout(10000)}
+  );
+  const ms=Date.now()-t0;
+  if(!r.ok) throw new Error('Open-Meteo HTTP '+r.status);
+  const d=await r.json();
+  if(!d.elevation?.length) throw new Error('Sin elevation en respuesta');
+
+  // Interpolar — mismo código que index.html
+  const nE=d.elevation.length;
+  geo.forEach((p,gi)=>{
+    const ratio=gi/(geo.length-1||1);
+    const ei=Math.min(Math.round(ratio*(nE-1)),nE-1);
+    const ei2=Math.min(ei+1,nE-1);
+    const t2=(ratio*(nE-1))-ei;
+    p[2]=d.elevation[ei]*(1-t2)+d.elevation[ei2]*t2;
+  });
+
+  // Verificar resultado
+  const hasReal=geo.some(p=>p[2]>100);
+  const maxEl=Math.max(...geo.map(p=>p[2])).toFixed(0);
+  const minEl=Math.min(...geo.map(p=>p[2])).toFixed(0);
+  const pt0=geo[0][2].toFixed(0);   // Bogotá ~2600m
+  const ptMid=geo[250][2].toFixed(0); // Honda ~250m
+  const ptEnd=geo[499][2].toFixed(0); // Medellín ~1495m
+
+  if(!hasReal) throw new Error('Interpolación falló — todos los puntos en 0m');
+  if(geo[0][2]<1000) throw new Error(`Punto inicial debería ser ~2600m (Bogotá), got ${pt0}m`);
+  if(geo[499][2]<800) throw new Error(`Punto final debería ser ~1495m (Medellín), got ${ptEnd}m`);
+
+  // Simular buildElevData
+  const elevData=[];
+  let cum=0;
+  geo.forEach((p,i)=>{
+    if(i>0){
+      const prev=geo[i-1];
+      const dLat=p[0]-prev[0], dLng=p[1]-prev[1];
+      const d2=Math.sqrt(dLat*dLat+dLng*dLng)*111;
+      cum+=d2;
+    }
+    elevData.push({km:cum, el:p[2]});
+  });
+  const chartReady=elevData.length>0&&elevData.some(e=>e.el>100);
+
+  return [
+    `<span class="ok">✓ Open-Meteo respondió en ${ms}ms</span>`,
+    `<span class="ok">✓ ${nE} muestras → interpoladas a ${geo.length} puntos</span>`,
+    `<span class="ok">✓ Bogotá (p[0]):   ${pt0}m ${geo[0][2]>1000?'✓':'⚠️ esperado ~2600m'}</span>`,
+    `<span class="ok">✓ Honda (p[250]):  ${ptMid}m ${geo[250][2]>100?'✓':'⚠️ esperado ~250m'}</span>`,
+    `<span class="ok">✓ Medellín (p[499]): ${ptEnd}m ${geo[499][2]>800?'✓':'⚠️ esperado ~1495m'}</span>`,
+    `<span class="ok">✓ elevData listo para chart: ${chartReady?'SÍ ✓':'NO ❌'}</span>`,
+    `<span class="ok">✓ Rango total: ↑${maxEl}m · ↓${minEl}m</span>`,
+    `<span class="dim">  muestra geo[0..5]: [${geo.slice(0,5).map(p=>Math.round(p[2])).join(', ')}]m</span>`,
+  ].join('\n');
+});
+
 // ─── RUNNER ──────────────────────────────────────────────────────
 
 async function runAll(){

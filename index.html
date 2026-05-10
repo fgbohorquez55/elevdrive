@@ -1168,7 +1168,7 @@ async function calcRoute(){
             geometry_simplify:false
           })
         });
-        if(r.ok){ processRouteORS(await r.json()); return }
+        if(r.ok){ await processRouteORS(await r.json()); return }
         const errTxt=await r.text().catch(()=>'');
         const msg=r.status===403?'API Key ORS inválida':r.status===429?'ORS: límite alcanzado':'ORS error '+r.status;
         toast('⚠️ '+msg+' · Usando proxy');
@@ -1187,8 +1187,14 @@ async function calcRoute(){
         })
       });
       if(r.ok){
-        const d=await r.json();
-        if(d.coords&&d.coords.length){ processRouteProxy(d); return }
+        try{
+          const text=await r.text();
+          const d=JSON.parse(text);
+          if(d.coords&&d.coords.length){ await processRouteProxy(d); return }
+          console.warn('/api/route: sin coords en respuesta',Object.keys(d||{}));
+        }catch(parseErr){
+          console.warn('/api/route: respuesta no es JSON (posible HTML)',parseErr.message);
+        }
       }
     }catch(e){ if(e.name==='AbortError') throw e; console.warn('/api/route:',e.message) }
 
@@ -1199,7 +1205,7 @@ async function calcRoute(){
     if(!r.ok) throw new Error('OSRM no disponible ('+r.status+')');
     const d=await r.json();
     if(d.code!=='Ok') throw new Error('OSRM: '+d.message);
-    processRouteOSRM(d);
+    await processRouteOSRM(d);
 
   }catch(e){
     if(e.name==='AbortError') return;
@@ -1212,9 +1218,8 @@ function cancelCalc(){ S.calcAbort?.abort(); $('ov-calc').classList.remove('show
 
 // ── Procesa respuesta del PROXY /api/route ──────────────────────────────────
 // Formato: { coords:[[lat,lng],...], distKm:number, dur:"Xh Ymin" }
-function processRouteProxy(data){
-  S.geo=data.coords.map(c=>[c[0],c[1],0]); // [lat,lng, elev=0 por ahora]
-  // Pasos mínimos para navegación (el proxy no devuelve steps)
+async function processRouteProxy(data){
+  S.geo=data.coords.map(c=>[c[0],c[1],0]);
   S.steps=[
     {type:11,name:S.origin.name||'Salida',instruction:'Inicia el recorrido',
      distance:data.distKm*1000*0.95,duration:0,way_points:[0,Math.max(0,S.geo.length-2)]},
@@ -1229,21 +1234,26 @@ function processRouteProxy(data){
   if(hm) min+=parseInt(hm[1])*60;
   if(mm) min+=parseInt(mm[1]);
   S.totalMin=min||Math.round(data.distKm/80*60);
+
+  // ── ELEVACIÓN SÍNCRONA: esperar antes de mostrar resultado ────────────────
+  $('calc-sub').textContent='Obteniendo elevación...';
+  await enrichElevationSync(); // bloquea hasta tener datos reales
   buildElevData();
+
   const batArr=estBatArrival();
   $('rs-dist').textContent=fmDist(data.distKm*1000);
   $('rs-time').textContent=data.dur||fmDur(S.totalMin);
   $('rs-bat').textContent=Math.round(batArr)+'%';
   $('rs-bat').style.color=batArr<15?'var(--red)':batArr<25?'var(--yellow)':'var(--green)';
-  $('rs-elev').textContent='📡...';
+  const maxEl=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
+  $('rs-elev').textContent=maxEl>5?Math.round(maxEl)+'m':'—';
   drawPreview();
   $('route-result').style.display=''; $('calc-wrap').style.display='none';
-  toast('✓ Ruta: '+fmDist(data.distKm*1000)+' · '+(data.dur||fmDur(S.totalMin)));
-  enrichElevation(); // Obtiene elevación real del proxy o de APIs públicas
+  toast('✓ Ruta: '+fmDist(data.distKm*1000)+' · '+(data.dur||fmDur(S.totalMin))+(maxEl>5?' · ↑'+Math.round(maxEl)+'m':''));
 }
 
 // ── Procesa respuesta ORS GeoJSON (key usuario, con elevación + steps) ───────
-function processRouteORS(data){
+async function processRouteORS(data){
   if(data.type==='FeatureCollection'&&data.features?.length){
     const feat=data.features[0];
     S.geo=feat.geometry.coordinates.map(c=>[c[1],c[0],c[2]??0]);
@@ -1264,14 +1274,21 @@ function processRouteORS(data){
     drawPreview();
     $('route-result').style.display=''; $('calc-wrap').style.display='none';
     toast('✓ Ruta ORS: '+fmDist(distM)+' · '+fmDur(S.totalMin)+(hasElev?' · ↑'+Math.round(maxEl)+'m':''));
-    if(!hasElev) enrichElevation();
+    if(!hasElev){
+      $('calc-sub').textContent='Obteniendo elevación...';
+      await enrichElevationSync();
+      buildElevData();
+      const maxEl2=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
+      $('rs-elev').textContent=maxEl2>5?Math.round(maxEl2)+'m':'—';
+      drawPreview();
+    }
   } else {
     toast('⚠️ Respuesta ORS inesperada'); console.error('ORS data:',data);
   }
 }
 
 // Procesa respuesta OSRM (sin elevación — fallback gratuito)
-function processRouteOSRM(data){
+async function processRouteOSRM(data){
   const route=data.routes[0];
   // Rebuild geo from step geometries to preserve way_points alignment
   S.geo=[]; S.steps=[];
@@ -1304,9 +1321,14 @@ function processRouteOSRM(data){
   $('rs-bat').style.color=batArr<15?'var(--red)':batArr<25?'var(--yellow)':'var(--green)';
   $('rs-elev').textContent='—';
   drawPreview();
+  // Elevación síncrona antes de mostrar
+  $('calc-sub').textContent='Obteniendo elevación...';
+  await enrichElevationSync();
+  buildElevData();
+  const maxElO=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
+  $('rs-elev').textContent=maxElO>5?Math.round(maxElO)+'m':'—';
   $('route-result').style.display=''; $('calc-wrap').style.display='none';
-  toast('✓ Ruta: '+fmDist(route.distance)+' · '+fmDur(S.totalMin));
-  enrichElevation(); // Obtiene elevación real desde Open-Topo-Data
+  toast('✓ Ruta: '+fmDist(route.distance)+' · '+fmDur(S.totalMin)+(maxElO>5?' · ↑'+Math.round(maxElO)+'m':''));
 }
 
 function osrmType(mvr){
@@ -1344,54 +1366,76 @@ function buildElevData(){
 
 // ══════════════════════════════════
 // ELEVATION ENRICHMENT
-// Cascada: /api/elevation → Open-Meteo → Open-Topo-Data
+// enrichElevationSync: esperable, para usar ANTES de mostrar resultado
+// enrichElevation: wrapper que llama sync y actualiza chart post-nav
 // ══════════════════════════════════
-async function enrichElevation(){
+async function enrichElevationSync(){
   if(!S.geo.length) return;
-  if(S.geo.some(p=>p[2]>5)) return; // ya tiene elevación real
+  if(S.geo.some(p=>p[2]>5)) return;
 
   let elevs=null;
 
-  // ── 1: Proxy /api/elevation (Google Maps servidor + OpenTopo fallback) ────
+  // ── 1: Open-Meteo — PROBADO: devuelve 2582m/199m/1493m para Colombia ──────
   try{
-    const points=S.geo.map(p=>[p[0],p[1]]);
-    const r=await fetch('/api/elevation',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({points}),
-      signal:AbortSignal.timeout(20000)
-    });
+    const MAX=100;
+    const step=Math.max(1,Math.floor(S.geo.length/MAX));
+    const idxs=[];
+    for(let i=0;i<S.geo.length;i+=step) idxs.push(i);
+    if(idxs[idxs.length-1]!==S.geo.length-1) idxs.push(S.geo.length-1);
+    const lats=idxs.map(i=>S.geo[i][0].toFixed(4)).join(',');
+    const lngs=idxs.map(i=>S.geo[i][1].toFixed(4)).join(',');
+    const r=await fetch(
+      `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`,
+      {signal:AbortSignal.timeout(10000)}
+    );
     if(r.ok){
       const d=await r.json();
-      if(d.elevations?.length>0){
-        elevs=d.elevations;
-        console.log('Elevation OK via /api/elevation, source:',d.source,'count:',elevs.length);
+      if(d.elevation?.length>0){
+        // Interpolar a todos los puntos de la geometría
+        const nE=d.elevation.length;
+        S.geo.forEach((p,gi)=>{
+          const ratio=gi/(S.geo.length-1||1);
+          const ei=Math.min(Math.round(ratio*(nE-1)),nE-1);
+          const ei2=Math.min(ei+1,nE-1);
+          const t=(ratio*(nE-1))-ei;
+          p[2]=d.elevation[ei]*(1-t)+d.elevation[ei2]*t;
+        });
+        elevs=d.elevation; // marca éxito
+        console.log('✅ Open-Meteo elevation OK, sample:',d.elevation.slice(0,3));
       }
     }
-  }catch(e){ console.warn('/api/elevation failed:',e.message) }
+  }catch(e){ console.warn('Open-Meteo failed:',e.message) }
 
-  // ── 2: Open-Meteo (gratis, sin key, fiable) ───────────────────────────────
+  // ── 2: /api/elevation proxy (Google Maps server-side) ────────────────────
   if(!elevs){
     try{
-      const MAX=100;
-      const step=Math.max(1,Math.floor(S.geo.length/MAX));
-      const idxs=[];
-      for(let i=0;i<S.geo.length;i+=step) idxs.push(i);
-      if(idxs[idxs.length-1]!==S.geo.length-1) idxs.push(S.geo.length-1);
-      const lats=idxs.map(i=>S.geo[i][0].toFixed(4)).join(',');
-      const lngs=idxs.map(i=>S.geo[i][1].toFixed(4)).join(',');
-      const r=await fetch(
-        `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`,
-        {signal:AbortSignal.timeout(10000)}
-      );
+      const points=S.geo.map(p=>[p[0],p[1]]);
+      const r=await fetch('/api/elevation',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({points}),
+        signal:AbortSignal.timeout(20000)
+      });
       if(r.ok){
-        const d=await r.json();
-        if(d.elevation?.length>0){ elevs=d.elevation; console.log('Elevation OK via Open-Meteo') }
+        const text=await r.text();
+        const d=JSON.parse(text); // parse seguro
+        if(d.elevations?.length>0){
+          const nE=d.elevations.length;
+          S.geo.forEach((p,gi)=>{
+            const ratio=gi/(S.geo.length-1||1);
+            const ei=Math.min(Math.round(ratio*(nE-1)),nE-1);
+            const ei2=Math.min(ei+1,nE-1);
+            const t=(ratio*(nE-1))-ei;
+            p[2]=d.elevations[ei]*(1-t)+d.elevations[ei2]*t;
+          });
+          elevs=d.elevations;
+          console.log('✅ /api/elevation OK, source:',d.source);
+        }
       }
-    }catch(e){ console.warn('Open-Meteo failed:',e.message) }
+    }catch(e){ console.warn('/api/elevation failed:',e.message) }
   }
 
-  // ── 3: Open-Topo-Data (SRTM 30m backup) ──────────────────────────────────
+  // ── 3: Open-Topo-Data (último recurso) ───────────────────────────────────
   if(!elevs){
     try{
       const MAX2=50;
@@ -1407,33 +1451,39 @@ async function enrichElevation(){
       if(r.ok){
         const d=await r.json();
         if(d.status==='OK'&&d.results?.length){
-          elevs=d.results.map(res=>res.elevation??0);
-          console.log('Elevation OK via Open-Topo-Data');
+          const src=d.results.map(res=>res.elevation??0);
+          const nE=src.length;
+          S.geo.forEach((p,gi)=>{
+            const ratio=gi/(S.geo.length-1||1);
+            const ei=Math.min(Math.round(ratio*(nE-1)),nE-1);
+            const ei2=Math.min(ei+1,nE-1);
+            const t=(ratio*(nE-1))-ei;
+            p[2]=src[ei]*(1-t)+src[ei2]*t;
+          });
+          elevs=src;
+          console.log('✅ Open-Topo-Data OK');
         }
       }
     }catch(e){ console.warn('Open-Topo-Data failed:',e.message) }
   }
 
-  if(!elevs){ toast('⚠️ Sin elevación disponible · Verifica conexión'); return }
-
-  // Interpolar para TODOS los puntos de la geometría
-  const nE=elevs.length;
-  S.geo.forEach((p,gi)=>{
-    const ratio=gi/(S.geo.length-1||1);
-    const ei=Math.min(Math.round(ratio*(nE-1)),nE-1);
-    const ei2=Math.min(ei+1,nE-1);
-    const t=(ratio*(nE-1))-ei;
-    p[2]=elevs[ei]*(1-t)+elevs[ei2]*t;
-  });
+  if(!elevs){ console.warn('All elevation sources failed'); toast('⚠️ Sin elevación disponible'); return; }
 
   buildElevData();
   const maxEl=Math.max(...S.elevData.map(p=>p.el));
   const minEl=Math.min(...S.elevData.map(p=>p.el));
-  const elEl=$('rs-elev'); if(elEl) elEl.textContent=Math.round(maxEl)+'m';
+  const elEl=$('rs-elev'); if(elEl&&maxEl>5) elEl.textContent=Math.round(maxEl)+'m';
+  toast('📡 Elevación: ↑'+Math.round(maxEl)+'m · ↓'+Math.round(minEl)+'m');
+}
+// Wrapper para actualizar chart en navegación activa
+async function enrichElevation(){
+  await enrichElevationSync();
+  buildElevData();
+  const maxEl2=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
   if($('screen-main')?.classList.contains('active')&&S.prevChart) drawPreview();
   if(S.elevChart) updateElevChart(S.distKm||0);
-  toast('📡 Elevación: '+Math.round(maxEl)+'m max · '+Math.round(minEl)+'m min');
 }
+
 
 function estBatArrival(){
   if(!S.vehicle) return S.batPct;
@@ -1716,8 +1766,20 @@ function checkPeakAlert(currentKm){
 // ══════════════════════════════════
 function updateInfoBar(){
   const remKm=Math.max(0,S.totalKm-S.distKm);
-  const spd=Math.max(5,S.speed||S.simSpeed);
-  const remMin=(remKm/spd)*60;
+  // ETA: usar tiempo proporcional de ruta original como base,
+  // solo mezclar con velocidad GPS si es razonable (>25 km/h)
+  let remMin;
+  const pctDone=S.totalKm>0?S.distKm/S.totalKm:0;
+  const routeBasedMin=S.totalMin*(1-pctDone); // proporcional al total original
+  const gpsSpd=S.speed||0;
+  if(gpsSpd>25&&S.navMode==='gps'){
+    // Blend: 70% ruta original, 30% velocidad actual
+    const spdBasedMin=(remKm/gpsSpd)*60;
+    remMin=routeBasedMin*0.7+spdBasedMin*0.3;
+  } else {
+    remMin=routeBasedMin; // sin GPS confiable, usar estimado de ruta
+  }
+  remMin=Math.max(1,remMin);
   const eta=new Date(Date.now()+remMin*60000);
   const etaS=fmTime(eta), timeS=fmDur(remMin), distS=fmDist(remKm*1000);
   $('nb-eta').textContent=etaS; $('nb-time').textContent=timeS; $('nb-dist').textContent=distS;
