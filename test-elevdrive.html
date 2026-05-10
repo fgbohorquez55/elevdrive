@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ElevDrive — Test Suite</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:monospace;background:#070d1f;color:#dce8ff;padding:12px;font-size:13px}
+h1{color:#00d4ff;font-size:16px;margin-bottom:14px;letter-spacing:2px}
+.test{border:1px solid #1e2e4a;border-radius:6px;margin-bottom:8px;overflow:hidden}
+.test-header{padding:8px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;background:#0f1729}
+.badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;min-width:60px;text-align:center}
+.badge.pass{background:#003d22;color:#00ff88;border:1px solid #00ff88}
+.badge.fail{background:#3d0011;color:#ff3a5c;border:1px solid #ff3a5c}
+.badge.run{background:#2a2000;color:#ffaa00;border:1px solid #ffaa00}
+.badge.skip{background:#1e2e4a;color:#5a7099}
+.test-name{flex:1;color:#dce8ff}
+.test-body{padding:10px 12px;background:#070d1f;border-top:1px solid #1e2e4a;display:none;white-space:pre-wrap;font-size:11px;line-height:1.6}
+.test-body.show{display:block}
+.ok{color:#00ff88}
+.err{color:#ff3a5c}
+.warn{color:#ffaa00}
+.dim{color:#5a7099}
+#summary{margin-bottom:14px;padding:10px;background:#0f1729;border-radius:6px;border:1px solid #1e2e4a}
+#run-all{padding:10px 20px;background:#00d4ff;color:#070d1f;border:none;border-radius:6px;font-family:monospace;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;margin-bottom:14px;width:100%}
+.coords-input{display:flex;gap:6px;margin-bottom:10px}
+.coords-input input{flex:1;padding:6px;background:#0f1729;border:1px solid #1e2e4a;color:#dce8ff;border-radius:4px;font-family:monospace;font-size:11px}
+.coords-input label{font-size:10px;color:#5a7099;display:block;margin-bottom:2px}
+</style>
+</head>
+<body>
+<h1>⚡ ELEVDRIVE — TEST SUITE</h1>
+
+<div id="summary">Presiona RUN ALL TESTS para diagnosticar</div>
+<button id="run-all" onclick="runAll()">▶ RUN ALL TESTS</button>
+
+<div class="coords-input">
+  <div><label>LAT origen</label><input id="lat1" value="4.6097" /></div>
+  <div><label>LNG origen</label><input id="lng1" value="-74.0817" /></div>
+  <div><label>LAT destino</label><input id="lat2" value="6.2518" /></div>
+  <div><label>LNG destino</label><input id="lng2" value="-75.5636" /></div>
+</div>
+
+<div id="tests"></div>
+
+<script>
+const TESTS = [];
+const results = {};
+
+function test(name, fn) { TESTS.push({name, fn}); }
+
+function el(id){ return document.getElementById(id); }
+
+function makeTest(name){
+  const div = document.createElement('div');
+  div.className = 'test';
+  div.id = 'test-'+TESTS.findIndex(t=>t.name===name);
+  div.innerHTML = `
+    <div class="test-header" onclick="toggleBody(this)">
+      <span class="badge run" id="badge-${name.replace(/\s/g,'_')}">...</span>
+      <span class="test-name">${name}</span>
+    </div>
+    <div class="test-body" id="body-${name.replace(/\s/g,'_')}"></div>`;
+  el('tests').appendChild(div);
+}
+
+function toggleBody(h){ h.nextSibling.classList.toggle('show'); }
+
+function setBadge(name, status, detail){
+  const id = name.replace(/\s/g,'_');
+  const b = el('badge-'+id);
+  if(!b) return;
+  b.className = 'badge '+status;
+  b.textContent = status==='pass'?'✅ PASS':status==='fail'?'❌ FAIL':status==='run'?'⏳...':'⏭ SKIP';
+  const body = el('body-'+id);
+  if(body && detail){ body.innerHTML = detail; body.classList.add('show'); }
+}
+
+function log(lines){ return lines.join('\n'); }
+
+// ─── TESTS ───────────────────────────────────────────────────────
+
+test('1. /api/route — formato y respuesta', async()=>{
+  const lat1=+el('lat1').value, lng1=+el('lng1').value;
+  const lat2=+el('lat2').value, lng2=+el('lng2').value;
+  const t0=Date.now();
+  const r = await fetch('/api/route',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({startLat:lat1,startLng:lng1,endLat:lat2,endLng:lng2})
+  });
+  const ms = Date.now()-t0;
+  const body = await r.text();
+  let d;
+  try{ d=JSON.parse(body); }catch(e){ throw new Error('JSON parse error: '+body.slice(0,200)); }
+  
+  if(!r.ok) throw new Error(`HTTP ${r.status}: ${JSON.stringify(d).slice(0,200)}`);
+  if(!d.coords) throw new Error('Sin campo coords. Keys: '+Object.keys(d).join(', '));
+  if(!d.distKm) throw new Error('Sin campo distKm');
+  if(!d.dur) throw new Error('Sin campo dur');
+  
+  const pts = d.coords.length;
+  const sample = d.coords[0];
+  return log([
+    `<span class="ok">✓ HTTP ${r.status} en ${ms}ms</span>`,
+    `<span class="ok">✓ coords: ${pts} puntos</span>`,
+    `<span class="ok">✓ distKm: ${d.distKm.toFixed(1)} km</span>`,
+    `<span class="ok">✓ dur: "${d.dur}"</span>`,
+    `<span class="dim">  sample[0]: [${sample}]</span>`,
+    `<span class="${sample[2]!==undefined?'warn':'ok'}">  ¿elevación en coords? ${sample[2]!==undefined?'⚠️ sí (inesperado)':'✓ no (esperado, 2D)'}</span>`,
+  ]);
+});
+
+test('2. /api/elevation — Google Maps o fallback', async()=>{
+  // Usar 10 puntos de prueba de la ruta Bogotá→Medellín
+  const pts = [
+    [4.6097,-74.0817],[4.8,-74.1],[5.0,-74.3],[5.2,-74.4],[5.4,-74.5],
+    [5.6,-74.8],[5.8,-75.0],[6.0,-75.2],[6.1,-75.4],[6.2518,-75.5636]
+  ];
+  const t0=Date.now();
+  const r = await fetch('/api/elevation',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({points:pts})
+  });
+  const ms = Date.now()-t0;
+  const body = await r.text();
+  let d;
+  try{ d=JSON.parse(body); }catch(e){ throw new Error('JSON parse error: '+body.slice(0,200)); }
+  
+  if(!r.ok) throw new Error(`HTTP ${r.status}: ${JSON.stringify(d).slice(0,200)}`);
+  if(!d.elevations) throw new Error('Sin campo elevations. Keys: '+Object.keys(d).join(', '));
+  
+  const elevs = d.elevations;
+  const hasReal = elevs.some(e=>e>100); // Colombia tiene >100m en toda la ruta
+  const min = Math.min(...elevs).toFixed(0);
+  const max = Math.max(...elevs).toFixed(0);
+  
+  if(!hasReal) throw new Error(`Elevaciones sospechosas (todas <100m): [${elevs.map(e=>e.toFixed(0)).join(',')}]`);
+  
+  return log([
+    `<span class="ok">✓ HTTP ${r.status} en ${ms}ms</span>`,
+    `<span class="ok">✓ source: ${d.source}</span>`,
+    `<span class="ok">✓ ${elevs.length} elevaciones recibidas</span>`,
+    `<span class="ok">✓ rango: ${min}m → ${max}m (Colombia ✓)</span>`,
+    `<span class="dim">  valores: [${elevs.map(e=>Math.round(e)).join(', ')}]</span>`,
+    `<span class="dim">  pts_used: ${d.points_used} / pts_original: ${d.points_original}</span>`,
+  ]);
+});
+
+test('3. /api/elevation — 1000 puntos (carga real)', async()=>{
+  // Simular una ruta Bogotá→Medellín con 1000 puntos interpolados
+  const pts=[];
+  for(let i=0;i<1000;i++){
+    const t=i/999;
+    pts.push([4.6097+t*(6.2518-4.6097), -74.0817+t*(-75.5636+74.0817)]);
+  }
+  const t0=Date.now();
+  const r = await fetch('/api/elevation',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({points:pts})
+  });
+  const ms = Date.now()-t0;
+  if(!r.ok){ const t=await r.text(); throw new Error(`HTTP ${r.status}: ${t.slice(0,200)}`); }
+  const d = await r.json();
+  const hasReal = d.elevations?.some(e=>e>100);
+  const max = d.elevations?.length ? Math.max(...d.elevations).toFixed(0) : 0;
+  if(!hasReal) throw new Error('Elevaciones no reales con 1000pts: max='+max);
+  return log([
+    `<span class="ok">✓ 1000 pts → ${d.points_used} muestreados → ${d.elevations.length} elevaciones</span>`,
+    `<span class="ok">✓ fuente: ${d.source} en ${ms}ms</span>`,
+    `<span class="ok">✓ elevación máx: ${max}m</span>`,
+    `<span class="dim">  muestra: [${d.elevations.slice(0,5).map(e=>Math.round(e)).join(',')}...${d.elevations.slice(-3).map(e=>Math.round(e)).join(',')}]</span>`,
+  ]);
+});
+
+test('4. Open-Meteo (fallback público)', async()=>{
+  const pts=[[4.6097,-74.0817],[5.5,-74.7],[6.2518,-75.5636]];
+  const lats=pts.map(p=>p[0].toFixed(4)).join(',');
+  const lngs=pts.map(p=>p[1].toFixed(4)).join(',');
+  const t0=Date.now();
+  const r=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`,
+    {signal:AbortSignal.timeout(8000)});
+  const ms=Date.now()-t0;
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  if(!d.elevation?.length) throw new Error('Sin campo elevation');
+  const hasReal=d.elevation.some(e=>e>100);
+  if(!hasReal) throw new Error('Elevaciones no reales: '+JSON.stringify(d.elevation));
+  return log([
+    `<span class="ok">✓ Open-Meteo OK en ${ms}ms</span>`,
+    `<span class="ok">✓ valores: [${d.elevation.map(e=>Math.round(e)).join(', ')}]m</span>`,
+    `<span class="dim">  (Bogotá ~2600m, Honda ~250m, Medellín ~1495m)</span>`,
+  ]);
+});
+
+test('5. ORS — API key del usuario', async()=>{
+  const key = prompt('ORS API Key (Enter para saltar):','');
+  if(!key){ return '<span class="dim">Skipped — sin API key</span>'; }
+  const lat1=+el('lat1').value, lng1=+el('lng1').value;
+  const lat2=+el('lat2').value, lng2=+el('lng2').value;
+  const t0=Date.now();
+  const r=await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson',{
+    method:'POST',
+    headers:{'Authorization':key,'Content-Type':'application/json'},
+    body:JSON.stringify({
+      coordinates:[[lng1,lat1],[lng2,lat2]],
+      elevation:true,instructions:true,instructions_format:'text',geometry_simplify:false
+    })
+  });
+  const ms=Date.now()-t0;
+  if(!r.ok){ const t=await r.text(); throw new Error(`HTTP ${r.status}: ${t.slice(0,200)}`); }
+  const d=await r.json();
+  const feat=d.features?.[0];
+  if(!feat) throw new Error('Sin features en respuesta');
+  const coords=feat.geometry.coordinates;
+  const hasElev=coords.some(c=>c[2]>5);
+  const maxEl=hasElev?Math.max(...coords.map(c=>c[2]||0)).toFixed(0):0;
+  return log([
+    `<span class="ok">✓ ORS GeoJSON OK en ${ms}ms</span>`,
+    `<span class="ok">✓ ${coords.length} coordenadas</span>`,
+    `<span class="${hasElev?'ok':'err'}">  elevación incluida: ${hasElev?'✓ SÍ ('+maxEl+'m máx)':'❌ NO — elevation:true ignorado'}</span>`,
+    `<span class="dim">  distancia: ${(feat.properties.summary.distance/1000).toFixed(1)}km</span>`,
+    `<span class="dim">  sample[0]: [${coords[0]}]</span>`,
+  ]);
+});
+
+test('6. GPS disponible', async()=>{
+  if(!navigator.geolocation) throw new Error('navigator.geolocation no disponible');
+  return new Promise((res,rej)=>{
+    navigator.geolocation.getCurrentPosition(p=>{
+      const acc=p.coords.accuracy;
+      res(log([
+        `<span class="ok">✓ GPS OK</span>`,
+        `<span class="ok">✓ lat: ${p.coords.latitude.toFixed(5)}</span>`,
+        `<span class="ok">✓ lng: ${p.coords.longitude.toFixed(5)}</span>`,
+        `<span class="${acc<50?'ok':'warn'}">  accuracy: ${acc.toFixed(0)}m ${acc<50?'(buena)':acc<200?'(media)':'(baja)'}</span>`,
+        `<span class="dim">  speed: ${p.coords.speed??'null'} m/s</span>`,
+        `<span class="dim">  altitude: ${p.coords.altitude??'null'}m</span>`,
+      ]));
+    }, e=>{
+      rej(new Error(e.code===1?'PERMISO DENEGADO':e.code===2?'POSICIÓN NO DISPONIBLE':'TIMEOUT'));
+    },{enableHighAccuracy:true,timeout:12000,maximumAge:0});
+  });
+});
+
+test('7. Leaflet + Chart.js cargables', async()=>{
+  const results=[];
+  // Leaflet
+  try{
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      s.onload=res; s.onerror=()=>rej(new Error('Leaflet CDN falló'));
+      document.head.appendChild(s);
+    });
+    results.push('<span class="ok">✓ Leaflet 1.9.4 cargado</span>');
+  }catch(e){ results.push('<span class="err">❌ Leaflet: '+e.message+'</span>'); }
+  // Chart.js
+  try{
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+      s.onload=res; s.onerror=()=>rej(new Error('Chart.js CDN falló'));
+      document.head.appendChild(s);
+    });
+    results.push('<span class="ok">✓ Chart.js 4.4.0 cargado</span>');
+  }catch(e){ results.push('<span class="err">❌ Chart.js: '+e.message+'</span>'); }
+  return results.join('\n');
+});
+
+test('8. AbortSignal.timeout soporte', async()=>{
+  try{
+    const c=AbortSignal.timeout(100);
+    return '<span class="ok">✓ AbortSignal.timeout disponible</span>';
+  }catch(e){
+    throw new Error('AbortSignal.timeout no soportado — los timeouts de fetch fallarán');
+  }
+});
+
+// ─── RUNNER ──────────────────────────────────────────────────────
+
+async function runAll(){
+  el('tests').innerHTML='';
+  el('summary').innerHTML='⏳ Ejecutando tests...';
+  
+  let pass=0, fail=0;
+  
+  for(const t of TESTS){
+    makeTest(t.name);
+    setBadge(t.name,'run');
+    try{
+      const detail = await t.fn();
+      setBadge(t.name,'pass',detail);
+      pass++;
+    }catch(e){
+      setBadge(t.name,'fail','<span class="err">❌ '+e.message+'</span>');
+      fail++;
+    }
+  }
+  
+  el('summary').innerHTML = 
+    `<span style="color:${fail===0?'#00ff88':'#ff3a5c'};font-size:15px;font-weight:700">`+
+    `${pass}/${TESTS.length} PASSED`+
+    `${fail>0?' — '+fail+' FALLARON':' — TODO OK'}</span>`+
+    `<br><span style="color:#5a7099;font-size:11px">Copia los resultados y mándamelos</span>`;
+}
+</script>
+</body>
+</html>
