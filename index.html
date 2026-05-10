@@ -1377,11 +1377,11 @@ async function enrichElevationSync(){
 
   // ── 1: Open-Meteo — PROBADO: devuelve 2582m/199m/1493m para Colombia ──────
   try{
-    const MAX=100;
-    const step=Math.max(1,Math.floor(S.geo.length/MAX));
-    const idxs=[];
-    for(let i=0;i<S.geo.length;i+=step) idxs.push(i);
-    if(idxs[idxs.length-1]!==S.geo.length-1) idxs.push(S.geo.length-1);
+    // Open-Meteo límite exacto: 100 locations. Samplear 99 garantiza primero+último incluidos.
+    const N=Math.min(99,S.geo.length);
+    const idxs=S.geo.length<=N
+      ? S.geo.map((_,i)=>i)
+      : Array.from({length:N},(_,i)=>Math.round(i*(S.geo.length-1)/(N-1)));
     const lats=idxs.map(i=>S.geo[i][0].toFixed(4)).join(',');
     const lngs=idxs.map(i=>S.geo[i][1].toFixed(4)).join(',');
     const r=await fetch(

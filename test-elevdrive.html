@@ -296,11 +296,11 @@ test('9. Elevación completa — simulación ruta real', async()=>{
   }
 
   // Exactamente el mismo código que enrichElevationSync en index.html
-  const MAX=100;
-  const step=Math.max(1,Math.floor(geo.length/MAX));
-  const idxs=[];
-  for(let i=0;i<geo.length;i+=step) idxs.push(i);
-  if(idxs[idxs.length-1]!==geo.length-1) idxs.push(geo.length-1);
+  // Open-Meteo límite: 100 locations. N=99 garantiza primero+último siempre incluidos.
+  const N=Math.min(99,geo.length);
+  const idxs=geo.length<=N
+    ? geo.map((_,i)=>i)
+    : Array.from({length:N},(_,i)=>Math.round(i*(geo.length-1)/(N-1)));
   const lats=idxs.map(i=>geo[i][0].toFixed(4)).join(',');
   const lngs=idxs.map(i=>geo[i][1].toFixed(4)).join(',');
 
