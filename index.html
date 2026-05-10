@@ -176,13 +176,13 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 #compass-needle{transform-origin:21px 21px;transition:transform .5s ease}
 
 /* Speedometer */
-.speed-box{position:absolute;bottom:12px;left:12px;z-index:400;background:rgba(7,13,31,.88);border:1px solid var(--border);border-radius:var(--rsm);padding:7px 11px;text-align:center;backdrop-filter:blur(4px)}
+.speed-box{position:absolute;bottom:12px;left:12px;z-index:400;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);padding:7px 11px;text-align:center;backdrop-filter:blur(6px);box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .speed-val{font-family:var(--fhud);font-size:26px;color:var(--text);font-weight:700;line-height:1}
 .speed-unit{font-family:var(--fui);font-size:9px;color:var(--dim);letter-spacing:1px}
 .speed-box.alert .speed-val{color:var(--red)}
 
 /* Map mode btn */
-.map-mode-btn{position:absolute;bottom:12px;right:12px;z-index:400;background:rgba(7,13,31,.88);border:1px solid var(--accent);border-radius:var(--rsm);padding:5px 9px;font-family:var(--fui);font-size:10px;letter-spacing:1px;color:var(--accent);cursor:pointer;backdrop-filter:blur(4px)}
+.map-mode-btn{position:absolute;bottom:12px;right:12px;z-index:400;background:var(--surface);border:1px solid var(--accent);border-radius:var(--rsm);padding:5px 9px;font-family:var(--fui);font-size:10px;letter-spacing:1px;color:var(--accent);cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 2px 12px rgba(0,0,0,.3)}
 .map-mode-btn.north{border-color:var(--border);color:var(--dim)}
 
 /* Demo badge */
@@ -233,14 +233,14 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 .nb-l{font-family:var(--fui);font-size:8px;letter-spacing:1.5px;color:var(--dim);margin-top:1px}
 
 /* Arrival */
-.arrival{position:absolute;inset:0;background:rgba(7,13,31,.93);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:900}
+.arrival{position:absolute;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;z-index:900}
 .arrival.show{display:flex;animation:fadeIn .4s ease}
 .arr-flag{font-size:58px}
-.arr-title{font-family:var(--fhud);font-size:22px;color:var(--green);letter-spacing:4px}
+.arr-title{font-family:var(--fhud);font-size:26px;color:#00ff88;letter-spacing:4px;text-shadow:0 0 30px rgba(0,255,136,.6)}
 .arr-stats{display:flex;gap:22px}
 .arr-stat{text-align:center}
-.arr-sv{font-family:var(--fhud);font-size:18px;color:var(--accent)}
-.arr-sl{font-family:var(--fui);font-size:10px;color:var(--dim);letter-spacing:1px;margin-top:3px}
+.arr-sv{font-family:var(--fhud);font-size:22px;color:#00d4ff;text-shadow:0 0 20px rgba(0,212,255,.5)}
+.arr-sl{font-family:var(--fui);font-size:11px;color:rgba(255,255,255,.7);letter-spacing:2px;margin-top:3px}
 
 /* ── PANELS ── */
 .panel{position:fixed;inset:0;z-index:800;display:none}
@@ -297,6 +297,13 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 
 /* Toast */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--accent);border-radius:18px;padding:9px 18px;font-family:var(--fui);font-size:12px;color:var(--accent);z-index:2000;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;max-width:90vw;text-overflow:ellipsis;overflow:hidden}
+/* Notificación flotante de conducción — no bloquea la interfaz */
+.drv-alert{position:fixed;top:160px;left:50%;transform:translateX(-50%) translateY(-20px);z-index:700;display:flex;align-items:center;gap:10px;padding:10px 18px;border-radius:24px;font-family:var(--fui);font-size:13px;font-weight:700;letter-spacing:1px;pointer-events:none;opacity:0;transition:opacity .3s,transform .3s;white-space:nowrap;backdrop-filter:blur(8px);box-shadow:0 4px 24px rgba(0,0,0,.4)}
+.drv-alert.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.drv-alert.climb{background:rgba(255,58,92,.18);border:1.5px solid #ff3a5c;color:#ff3a5c}
+.drv-alert.regen{background:rgba(0,255,136,.15);border:1.5px solid #00ff88;color:#00ff88}
+.drv-alert.info{background:rgba(0,212,255,.15);border:1.5px solid #00d4ff;color:#00d4ff}
+.drv-alert .dal-icon{font-size:20px}
 .toast.show{opacity:1}
 
 /* Leaflet overrides */
@@ -554,6 +561,12 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
     <div class="nb-item"><div class="nb-v" id="nb-time">--</div><div class="nb-l">FALTAN</div></div>
     <div class="nb-item"><div class="nb-v" id="nb-dist">--</div><div class="nb-l">DISTANCIA</div></div>
     <div class="nb-item"><div class="nb-v" id="nb-bat">--%</div><div class="nb-l">BATERÍA</div></div>
+  </div>
+
+  <!-- Notificación flotante de conducción -->
+  <div class="drv-alert" id="drv-alert">
+    <span class="dal-icon" id="drv-icon">⚠️</span>
+    <span id="drv-txt">—</span>
   </div>
 
   <!-- Arrival overlay -->
@@ -1603,13 +1616,13 @@ function updateElevChart(currentKm){
   const isFull=(ELEV_MODES[S.elevWin][0]==='RUTA COMPLETA');
   if(isFull){
     disp=S.elevData;
-    posIdx=disp.findIndex(p=>p.km>=currentKm); if(posIdx<0) posIdx=disp.length-1;
+    posIdx=disp.reduce((bi,p,i)=>Math.abs(p.km-currentKm)<Math.abs(disp[bi].km-currentKm)?i:bi,0);
   } else {
     const {behind,ahead}=getWinKm();
     const wStart=Math.max(0,currentKm-behind), wEnd=currentKm+ahead;
     disp=S.elevData.filter(p=>p.km>=wStart&&p.km<=wEnd);
     if(!disp.length) return;
-    posIdx=disp.findIndex(p=>p.km>=currentKm); if(posIdx<0) posIdx=0;
+    posIdx=disp.reduce((bi,p,i)=>Math.abs(p.km-currentKm)<Math.abs(disp[bi].km-currentKm)?i:bi,0);
   }
   S.elevDisp=disp;
   S.elevChart.data.labels=disp.map(p=>{
@@ -1751,13 +1764,18 @@ function updateBat(dKm,slope,spd){
     const regen=dKm*v.regen/100*rf*0.5; // Simplified regen kWh
     delta=-regen;
     $('regen-alert').classList.add('show');
-    $('regen-txt').textContent=`Regen activo ·  +${(regen*1000).toFixed(0)} Wh`;
-    if(S.soundOn&&Math.random()<0.05) playRegen();
+    $('regen-txt').textContent=`Regen activo · +${(regen*1000).toFixed(0)} Wh`;
+    if(_alertState!=='regen'){
+      _alertState='regen';
+      showDrvAlert('regen','⚡','REGEN ACTIVO · Recuperando energía',4000);
+      if(S.soundOn) playRegen();
+    }
   } else {
     const sf=1+Math.max(0,slope)/100*4;
     const vf=1+Math.max(0,spd-80)/80*0.3;
     delta=dKm*v.cons/100*sf*vf;
     $('regen-alert').classList.remove('show');
+    if(_alertState==='regen'){ _alertState='none' }
   }
   S.batKwh=Math.max(0,Math.min(v.cap,S.batKwh-delta));
   S.batPct=(S.batKwh/v.cap)*100;
@@ -1775,13 +1793,46 @@ function updateBat(dKm,slope,spd){
 // ══════════════════════════════════
 // ALERTS
 // ══════════════════════════════════
+// ── Sistema de alertas de conducción ─────────────────────────────────────────
+let _alertState='none'; // 'none'|'climb'|'regen'
+let _alertTimer=null;
+let _lastAlertKm=-99; // evitar spam
+
+function showDrvAlert(type, icon, msg, durationMs=5000){
+  const el=$('drv-alert');
+  if(!el||!S.navActive) return;
+  el.className='drv-alert '+type;
+  $('drv-icon').textContent=icon;
+  $('drv-txt').textContent=msg;
+  el.classList.add('show');
+  clearTimeout(_alertTimer);
+  _alertTimer=setTimeout(()=>{ el.classList.remove('show') }, durationMs);
+}
+
+function hideDrvAlert(){
+  $('drv-alert')?.classList.remove('show');
+}
+
 function checkPeakAlert(currentKm){
   const ahead=S.elevData.filter(p=>p.km>currentKm&&p.km<=currentKm+LOOK_KM);
   const climb=ahead.find(p=>p.sl>5);
   if(climb){
-    $('peak-txt').textContent=`Subida ${climb.sl.toFixed(0)}% en ${(climb.km-currentKm).toFixed(1)} km`;
+    const distToClimb=(climb.km-currentKm);
+    $('peak-txt').textContent=`Subida ${climb.sl.toFixed(0)}% en ${distToClimb.toFixed(1)} km`;
     $('peak-alert').classList.add('show');
-  } else $('peak-alert').classList.remove('show');
+    // Alerta flotante + sonido si es nueva (cambio de estado o >2km desde última alerta)
+    if(_alertState!=='climb'&&Math.abs(currentKm-_lastAlertKm)>0.5){
+      _alertState='climb';
+      _lastAlertKm=currentKm;
+      const severity=climb.sl>15?'⛔':'⚠️';
+      const label=climb.sl>15?'SUBIDA MUY PRONUNCIADA':'SUBIDA PRONUNCIADA';
+      showDrvAlert('climb', severity, `${label} ${climb.sl.toFixed(0)}% · ${distToClimb.toFixed(1)} km`, 6000);
+      if(S.soundOn) playClimbAlert(climb.sl);
+    }
+  } else {
+    $('peak-alert').classList.remove('show');
+    if(_alertState==='climb'){ _alertState='none'; hideDrvAlert() }
+  }
 }
 
 // ══════════════════════════════════
@@ -1962,6 +2013,9 @@ function startNav(mode){
       startSim();
       const sp=S.geo[0]; if(sp) S.map.setView([sp[0],sp[1]],15);
     }
+    // Sonido + alerta de inicio
+    if(S.soundOn) setTimeout(()=>playStartNav(),800);
+    setTimeout(()=>showDrvAlert('info','🚀','NAVEGACIÓN INICIADA · Buena ruta',3000),1000);
     $('arrival').classList.remove('show');
     if(S.map) setTimeout(()=>S.map.invalidateSize(),300);
   },100);
@@ -1982,6 +2036,7 @@ function arrived(){
   $('arr-bat').textContent=Math.round(S.batPct)+'%';
   $('arrival').classList.add('show');
   if(S.soundOn) playArrival();
+  showDrvAlert('regen','🏁','¡LLEGASTE! Destino alcanzado',5000);
 }
 
 function newRoute(){
@@ -1995,28 +2050,69 @@ function newRoute(){
 // ══════════════════════════════════
 // SOUNDS
 // ══════════════════════════════════
-function mkAudio(fn){
-  try{ const ctx=new(window.AudioContext||window.webkitAudioContext)(); fn(ctx) }catch(e){}
-}
+let _audioCtx=null;
+function getACtx(){ if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return _audioCtx }
+function mkAudio(fn){ try{ fn(getACtx()) }catch(e){ console.warn('Audio:',e.message) } }
+
+// 🏁 LLEGADA — fanfarria ascendente (4 notas)
 function playArrival(){
   mkAudio(ctx=>{
     [523,659,784,1047].forEach((f,i)=>{
       const o=ctx.createOscillator(),g=ctx.createGain();
       o.connect(g); g.connect(ctx.destination);
       o.frequency.value=f; o.type='sine';
-      const t=ctx.currentTime+i*.15;
-      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.3,t+.06); g.gain.linearRampToValueAtTime(0,t+.35);
-      o.start(t); o.stop(t+.35);
+      const t=ctx.currentTime+i*.18;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.35,t+.05);
+      g.gain.setValueAtTime(.35,t+.12); g.gain.linearRampToValueAtTime(0,t+.4);
+      o.start(t); o.stop(t+.4);
     });
   });
 }
+
+// ⚡ REGEN — tono ascendente suave (energía recuperándose)
 function playRegen(){
   mkAudio(ctx=>{
     const o=ctx.createOscillator(),g=ctx.createGain();
-    o.connect(g); g.connect(ctx.destination); o.type='sine';
-    o.frequency.setValueAtTime(800,ctx.currentTime); o.frequency.linearRampToValueAtTime(1200,ctx.currentTime+.25);
-    g.gain.setValueAtTime(.08,ctx.currentTime); g.gain.linearRampToValueAtTime(0,ctx.currentTime+.35);
-    o.start(); o.stop(ctx.currentTime+.35);
+    o.connect(g); g.connect(ctx.destination);
+    o.type='sine';
+    o.frequency.setValueAtTime(600,ctx.currentTime);
+    o.frequency.linearRampToValueAtTime(1100,ctx.currentTime+.4);
+    g.gain.setValueAtTime(0,ctx.currentTime);
+    g.gain.linearRampToValueAtTime(.12,ctx.currentTime+.1);
+    g.gain.linearRampToValueAtTime(0,ctx.currentTime+.5);
+    o.start(); o.stop(ctx.currentTime+.5);
+  });
+}
+
+// ⚠️ SUBIDA PRONUNCIADA — 3 pulsos de advertencia (urgencia por pendiente)
+function playClimbAlert(slopePct){
+  mkAudio(ctx=>{
+    const pulses=slopePct>15?3:2; // más pulsos a mayor pendiente
+    const freq=slopePct>15?880:660;
+    for(let i=0;i<pulses;i++){
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type='square'; o.frequency.value=freq;
+      const t=ctx.currentTime+i*.28;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.15,t+.03);
+      g.gain.setValueAtTime(.15,t+.14); g.gain.linearRampToValueAtTime(0,t+.22);
+      o.start(t); o.stop(t+.22);
+    }
+  });
+}
+
+// 🚀 INICIO DE NAVEGACIÓN — tono de confirmación
+function playStartNav(){
+  mkAudio(ctx=>{
+    [440,554,659].forEach((f,i)=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type='sine'; o.frequency.value=f;
+      const t=ctx.currentTime+i*.12;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.2,t+.04);
+      g.gain.linearRampToValueAtTime(0,t+.25);
+      o.start(t); o.stop(t+.25);
+    });
   });
 }
 
