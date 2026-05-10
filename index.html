@@ -634,8 +634,11 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
       </div>
       <div class="api-block">
         <label>API KEY — OPENROUTESERVICE</label>
-        <input type="text" id="api-key" placeholder="5b3ce3597851110001cf624..." oninput="saveApiKey()">
-        <div class="api-hint">Gratis en <a href="https://openrouteservice.org" target="_blank">openrouteservice.org</a></div>
+        <div class="pass-wrap" style="margin-bottom:4px">
+          <input type="password" id="api-key" placeholder="Pega aquí tu API key..." oninput="saveApiKey()" autocomplete="off" spellcheck="false">
+          <button class="btn-eye" onclick="togglePw('api-key')" type="button">👁</button>
+        </div>
+        <div class="api-hint">Gratis en <a href="https://openrouteservice.org" target="_blank">openrouteservice.org</a> · Opcional (funciona sin ella)</div>
       </div>
       <button class="btn btn-primary" style="margin-top:18px" onclick="closePanel('p-settings')">LISTO ✓</button>
     </div>
@@ -893,7 +896,17 @@ function openPanel(id){
   if(id==='p-profile') loadProfPanel();
   $(id).classList.add('active');
 }
-function closePanel(id){ $(id).classList.remove('active') }
+function closePanel(id){
+  if(id==='p-settings'){
+    S.orsKey=($('api-key').value||'').trim();
+    sv('orsKey',S.orsKey);
+    S.soundOn=$('tog-sound').checked;
+    S.notifOn=$('tog-notif').checked;
+    sv('sound',S.soundOn); sv('notif',S.notifOn);
+    syncAlertBtns();
+  }
+  $(id).classList.remove('active');
+}
 
 // ══════════════════════════════════
 // VEHICLE
@@ -1131,70 +1144,147 @@ function checkCalc(){
 }
 
 // ══════════════════════════════════
+// ══════════════════════════════════
 // ROUTE CALCULATION
 // ══════════════════════════════════
 async function calcRoute(){
-  if(!S.origin||!S.dest||!S.vehicle) return;
-  if(!S.orsKey){
-    // Try proxy
-    try{ const r=await fetch('/api/ping'); if(!r.ok) throw new Error() }
-    catch(e){ toast('Configura tu API Key en ⚙'); openPanel('p-settings'); return }
-  }
+  // Re-read key from input in case user just typed it
+  const keyEl=$('api-key'); if(keyEl) S.orsKey=keyEl.value.trim();
+  if(!S.origin||!S.dest){ toast('⚠️ Selecciona salida y destino'); return }
+  if(!S.vehicle){ toast('⚠️ Configura tu vehículo primero'); openPanel('p-vehicle'); return }
+
   $('ov-calc').classList.add('show');
   S.calcAbort=new AbortController();
+  const sig=S.calcAbort.signal;
+  const body={
+    coordinates:[[S.origin.lng,S.origin.lat],[S.dest.lng,S.dest.lat]],
+    elevation:true, instructions:true, instructions_format:'text',
+    geometry_simplify:false, format:'json'
+  };
+
   try{
-    const body={
-      coordinates:[[S.origin.lng,S.origin.lat],[S.dest.lng,S.dest.lat]],
-      elevation:true, instructions:true, instructions_format:'text',
-      geometry_simplify:false, format:'json'
-    };
-    let r;
+    // ── INTENTO 1: ORS con API key ──────────────────────────
     if(S.orsKey){
-      r=await fetch(`${ORS}/v2/directions/driving-car`,{
-        method:'POST', signal:S.calcAbort.signal,
-        headers:{'Authorization':S.orsKey,'Content-Type':'application/json'},
-        body:JSON.stringify(body)
-      });
-    } else {
-      r=await fetch('/api/route',{
-        method:'POST', signal:S.calcAbort.signal,
+      try{
+        const r=await fetch(`${ORS}/v2/directions/driving-car`,{
+          method:'POST', signal:sig,
+          headers:{'Authorization':S.orsKey,'Content-Type':'application/json'},
+          body:JSON.stringify(body)
+        });
+        if(r.ok){ processRouteORS(await r.json()); return }
+        const errTxt=await r.text().catch(()=>'');
+        console.warn('ORS key failed:',r.status,errTxt.slice(0,120));
+      }catch(e){ if(e.name==='AbortError') throw e; console.warn('ORS fetch error:',e.message) }
+    }
+
+    // ── INTENTO 2: Proxy Netlify ─────────────────────────────
+    try{
+      const r=await fetch('/api/route',{
+        method:'POST', signal:sig,
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(body)
       });
-    }
-    if(!r.ok){ const t=await r.text(); throw new Error(t) }
-    processRoute(await r.json());
+      if(r.ok){ processRouteORS(await r.json()); return }
+    }catch(e){ if(e.name==='AbortError') throw e; }
+
+    // ── INTENTO 3: OSRM gratuito (sin elevación) ─────────────
+    toast('ℹ️ Usando router gratuito (sin elevación)');
+    const osrmUrl=`https://router.project-osrm.org/route/v1/driving/${S.origin.lng},${S.origin.lat};${S.dest.lng},${S.dest.lat}?overview=full&geometries=geojson&steps=true`;
+    const r=await fetch(osrmUrl,{signal:sig});
+    if(!r.ok) throw new Error('OSRM no disponible ('+r.status+')');
+    const d=await r.json();
+    if(d.code!=='Ok') throw new Error('OSRM: '+d.message);
+    processRouteOSRM(d);
+
   }catch(e){
     if(e.name==='AbortError') return;
-    console.error(e); toast('Error: '+e.message.slice(0,60));
-  } finally{ $('ov-calc').classList.remove('show') }
+    console.error('Route error:',e);
+    toast('⚠️ '+e.message.slice(0,80));
+  }finally{ $('ov-calc').classList.remove('show') }
 }
+
 function cancelCalc(){ S.calcAbort?.abort(); $('ov-calc').classList.remove('show') }
 
-function processRoute(data){
+// Procesa respuesta ORS (con elevación)
+function processRouteORS(data){
   const route=data.routes[0];
-  // Decode geometry (with elevation)
   S.geo=decodePoly(route.geometry,true);
-  // If all elevations 0, try 2D decode
   if(S.geo.every(p=>p[2]===0)) S.geo=decodePoly(route.geometry,false);
-  // Steps
   S.steps=[]; route.segments.forEach(seg=>S.steps.push(...seg.steps));
   S.totalKm=route.summary.distance/1000;
   S.totalMin=route.summary.duration/60;
   buildElevData();
-  // Stats UI
+  const batArr=estBatArrival();
   $('rs-dist').textContent=fmDist(route.summary.distance);
   $('rs-time').textContent=fmDur(S.totalMin);
-  const batArr=estBatArrival();
   $('rs-bat').textContent=Math.round(batArr)+'%';
   $('rs-bat').style.color=batArr<15?'var(--red)':batArr<25?'var(--yellow)':'var(--green)';
   const maxEl=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
-  $('rs-elev').textContent=Math.round(maxEl)+'m';
+  $('rs-elev').textContent=maxEl>0?Math.round(maxEl)+'m':'—';
   drawPreview();
-  $('route-result').style.display='';
-  $('calc-wrap').style.display='none';
+  $('route-result').style.display=''; $('calc-wrap').style.display='none';
   toast('✓ Ruta: '+fmDist(route.summary.distance)+' · '+fmDur(S.totalMin));
 }
+
+// Procesa respuesta OSRM (sin elevación — fallback gratuito)
+function processRouteOSRM(data){
+  const route=data.routes[0];
+  // Rebuild geo from step geometries to preserve way_points alignment
+  S.geo=[]; S.steps=[];
+  route.legs.forEach(leg=>{
+    leg.steps.forEach(step=>{
+      const startIdx=S.geo.length;
+      const coords=step.geometry.coordinates;
+      coords.forEach((c,ci)=>{
+        if(ci===0&&S.geo.length>0) return; // evitar punto duplicado en uniones
+        S.geo.push([c[1],c[0],0]);
+      });
+      const endIdx=S.geo.length-1;
+      S.steps.push({
+        type:osrmType(step.maneuver),
+        name:step.name||'',
+        instruction:osrmInstr(step.maneuver),
+        distance:step.distance,
+        duration:step.duration,
+        way_points:[startIdx,endIdx]
+      });
+    });
+  });
+  S.totalKm=route.distance/1000;
+  S.totalMin=route.duration/60;
+  buildElevData();
+  const batArr=estBatArrival();
+  $('rs-dist').textContent=fmDist(route.distance);
+  $('rs-time').textContent=fmDur(S.totalMin);
+  $('rs-bat').textContent=Math.round(batArr)+'%';
+  $('rs-bat').style.color=batArr<15?'var(--red)':batArr<25?'var(--yellow)':'var(--green)';
+  $('rs-elev').textContent='—';
+  drawPreview();
+  $('route-result').style.display=''; $('calc-wrap').style.display='none';
+  toast('✓ Ruta: '+fmDist(route.distance)+' · '+fmDur(S.totalMin)+' · Agrega API Key para elevación');
+}
+
+function osrmType(mvr){
+  const t=mvr.type,m=mvr.modifier||'';
+  if(t==='arrive') return 10; if(t==='depart') return 11;
+  if(t==='roundabout'||t==='rotary') return 7;
+  if(t==='exit roundabout'||t==='exit rotary') return 8;
+  if(t==='uturn') return 9;
+  if(t==='turn'||t==='new name'){
+    if(m==='left'||m==='slight left') return 0;
+    if(m==='right'||m==='slight right') return 1;
+    if(m==='sharp left') return 2; if(m==='sharp right') return 3;
+  }
+  return 6;
+}
+function osrmInstr(mvr){
+  const dirs={left:'izquierda',right:'derecha','sharp left':'brusco izq','sharp right':'brusco der','slight left':'leve izq','slight right':'leve der',straight:'recto',uturn:'media vuelta'};
+  const m=dirs[mvr.modifier]||mvr.modifier||'';
+  const map={turn:'Girar',continue:'Continuar',merge:'Incorporar',fork:'Desvío',arrive:'Destino',depart:'Inicio',roundabout:'Rotonda',uturn:'Media vuelta','exit roundabout':'Salir rotonda','new name':'Continuar'};
+  return (map[mvr.type]||mvr.type)+' '+(m?m:'');
+}
+
+
 
 function buildElevData(){
   S.elevData=[]; let cum=0;
