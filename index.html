@@ -711,8 +711,14 @@ const DEV_MS = 4000;    // ms before confirming deviation
 const CLIMB_PCT = 3;    // slope% = climb alert
 const DESCENT_PCT = -2; // slope% = regen zone
 const LOOK_KM = 3;      // lookahead for peak alerts
-const WIN_BEHIND = 1;   // km behind in elevation window
-const WIN_AHEAD = 7;    // km ahead in elevation window
+// Modos de ventana de elevación: [label, behind_km, ahead_km]
+const ELEV_MODES = [
+  ['RUTA COMPLETA', 0,   0  ],  // 0 = full route
+  ['8 KM',         1,   7  ],  // 1km atrás + 7km adelante
+  ['4 KM',         0.5, 3.5],  // 0.5km atrás + 3.5km adelante
+  ['1 KM',         0.2, 0.8],  // 200m atrás + 800m adelante
+  ['AUTO ⚡',      0,   0  ],  // dinámico por velocidad
+];
 
 // ORS step type → icon/label
 const MVR = {
@@ -750,7 +756,7 @@ const S = {
   origin:null, dest:null,
   geo:[], steps:[], elevData:[], elevDisp:[],
   totalKm:0, totalMin:0,
-  navMode:null, navActive:false, mapMode:'heading', showFull:false,
+  navMode:null, navActive:false, mapMode:'heading', showFull:false, elevWin:1,
   batPct:80, batKwh:0, fuelPct:50,
   pos:null, bearing:0, speed:0,
   distKm:0, geoIdx:0, elevIdx:0,
@@ -1579,21 +1585,35 @@ function initNavChart(){
   }));
 }
 
+// Retorna {behind, ahead} según modo y velocidad actual
+function getWinKm(){
+  const m=ELEV_MODES[S.elevWin];
+  if(m[0]==='AUTO ⚡'){
+    const spd=S.speed||S.simSpeed||0;
+    if(spd>80)  return{behind:1,   ahead:7  }; // 8km
+    if(spd>40)  return{behind:0.5, ahead:3.5}; // 4km
+    return       {behind:0.2, ahead:0.8};        // 1km
+  }
+  return{behind:m[1], ahead:m[2]};
+}
+
 function updateElevChart(currentKm){
   if(!S.elevChart||!S.elevData.length) return;
   let disp, posIdx;
-  if(S.showFull){
+  const isFull=(ELEV_MODES[S.elevWin][0]==='RUTA COMPLETA');
+  if(isFull){
     disp=S.elevData;
     posIdx=disp.findIndex(p=>p.km>=currentKm); if(posIdx<0) posIdx=disp.length-1;
   } else {
-    const wStart=Math.max(0,currentKm-WIN_BEHIND), wEnd=currentKm+WIN_AHEAD;
+    const {behind,ahead}=getWinKm();
+    const wStart=Math.max(0,currentKm-behind), wEnd=currentKm+ahead;
     disp=S.elevData.filter(p=>p.km>=wStart&&p.km<=wEnd);
     if(!disp.length) return;
     posIdx=disp.findIndex(p=>p.km>=currentKm); if(posIdx<0) posIdx=0;
   }
   S.elevDisp=disp;
-  S.elevChart.data.labels=disp.map((p,i)=>{
-    if(S.showFull) return p.km.toFixed(1);
+  S.elevChart.data.labels=disp.map(p=>{
+    if(isFull) return p.km.toFixed(1);
     const rel=p.km-currentKm;
     if(Math.abs(rel)<0.05) return '↑';
     return (rel>0?'+':'')+rel.toFixed(1);
@@ -1604,9 +1624,12 @@ function updateElevChart(currentKm){
 }
 
 function toggleElev(){
-  S.showFull=!S.showFull;
-  $('elev-toggle').textContent=S.showFull?'VENTANA 8KM':'RUTA COMPLETA';
-  updateElevChart(S.distKm);
+  S.elevWin=(S.elevWin+1)%ELEV_MODES.length;
+  $('elev-toggle').textContent=ELEV_MODES[S.elevWin][0];
+  $('elev-toggle').style.borderColor=S.elevWin===ELEV_MODES.length-1?'var(--yellow)':'';
+  $('elev-toggle').style.color=S.elevWin===ELEV_MODES.length-1?'var(--yellow)':'';
+  S.showFull=(S.elevWin===0);
+  updateElevChart(S.distKm||0);
 }
 
 // ══════════════════════════════════
@@ -1921,7 +1944,7 @@ function startNav(mode){
   S.navMode=mode; S.navActive=true;
   S.distKm=0; S.geoIdx=0; S.simIdx=0; S.stepIdx=0;
   S.batKwh=S.vehicle.cap*S.batPct/100;
-  S.devStart=null; S.showFull=false; S.tripStart=Date.now();
+  S.devStart=null; S.showFull=false; S.elevWin=1; S.tripStart=Date.now(); // default: 8KM
   showScreen('nav');
   setTimeout(()=>{
     initMap(); initNavChart();
@@ -1930,7 +1953,7 @@ function startNav(mode){
     updateElevChart(0);
     $('sim-ctrl').style.display=mode==='sim'?'':'none';
     $('demo-badge').style.display=mode==='sim'?'':'none';
-    $('elev-toggle').textContent='RUTA COMPLETA';
+    $('elev-toggle').textContent=ELEV_MODES[1][0]; $('elev-toggle').style.borderColor=''; $('elev-toggle').style.color='';
     if(S.steps.length) updateMvrBanner(0,S.steps[0].distance||0);
     if(mode==='gps'){
       startGPS();
