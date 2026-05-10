@@ -219,11 +219,23 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 .ls-v{font-family:var(--fhud);font-size:14px;color:var(--text)}
 
 /* Sim controls */
-.sim-ctrl{padding:7px 12px;border-top:1px solid var(--border);flex-shrink:0;display:none}
+.sim-ctrl{padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0;display:none} /* se activa en modo sim */
 .sim-lbl{display:flex;justify-content:space-between;margin-bottom:3px}
 .sim-lbl span{font-family:var(--fui);font-size:10px;color:var(--dim);letter-spacing:1px}
 .sim-lbl .sv{font-family:var(--fhud);font-size:12px;color:var(--accent)}
-.sim-ctrl input[type=range]{width:100%;accent-color:var(--accent)}
+/* Sim speed control: flotante sobre el mapa, siempre visible */
+.sim-speed-float{
+  position:absolute;bottom:58px;left:12px;right:12px;z-index:450;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--rsm);padding:8px 12px;
+  backdrop-filter:blur(8px);display:none;
+  box-shadow:0 2px 12px rgba(0,0,0,.4)
+}
+.sim-speed-float.show{display:block}
+.sim-speed-row{display:flex;align-items:center;gap:10px}
+.sim-speed-row label{font-family:var(--fui);font-size:9px;letter-spacing:2px;color:var(--dim);white-space:nowrap}
+.sim-speed-row input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+.sim-speed-val{font-family:var(--fhud);font-size:14px;color:var(--accent);min-width:48px;text-align:right}
 
 /* Bottom bar (portrait) */
 .nav-bottom{background:var(--surface);border-top:1px solid var(--border);padding:7px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;flex-shrink:0}
@@ -269,6 +281,8 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 .th-opt .ti{font-size:18px;display:block;margin-bottom:3px}
 .th-opt .tl{font-family:var(--fui);font-size:9px;letter-spacing:1px;color:var(--dim)}
 .api-block{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.sys-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg2);border-radius:6px;font-family:var(--fui);font-size:12px;color:var(--dim)}
+.sys-ok{color:var(--green);font-weight:700;font-size:11px;letter-spacing:1px}
 .api-block label{font-family:var(--fui);font-size:10px;letter-spacing:2px;color:var(--dim);display:block;margin-bottom:5px}
 .api-block input{width:100%;padding:8px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);color:var(--text);font-size:12px;font-family:monospace;outline:none}
 .api-block input:focus{border-color:var(--accent)}
@@ -512,6 +526,17 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 
       <!-- Map mode button -->
       <div class="map-mode-btn" id="map-mode-btn" onclick="toggleMapMode()">HDG-UP ↑</div>
+
+      <!-- Sim speed: flotante visible en modo simulación -->
+      <div class="sim-speed-float" id="sim-speed-float" style="display:none">
+        <div class="sim-speed-row">
+          <label>⚡ VEL SIM</label>
+          <span style="font-size:9px;color:var(--dim)">30</span>
+          <input type="range" min="30" max="200" value="72" id="sim-sl" oninput="onSimSpeed()" style="cursor:pointer;flex:1;accent-color:var(--accent)">
+          <span style="font-size:9px;color:var(--dim)">200</span>
+          <div class="sim-speed-val" id="sim-speed-lbl">72 km/h</div>
+        </div>
+      </div>
     </div>
 
     <!-- ELEVATION PANEL -->
@@ -547,10 +572,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
       </div>
 
       <!-- Sim speed controls -->
-      <div class="sim-ctrl" id="sim-ctrl">
-        <div class="sim-lbl"><span>VELOCIDAD SIMULACIÓN</span><span class="sv" id="sim-speed-lbl">72 km/h</span></div>
-        <input type="range" min="30" max="130" value="72" id="sim-sl" oninput="onSimSpeed()">
-      </div>
+
     </div>
 
   </div>
@@ -645,12 +667,13 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
         </div>
       </div>
       <div class="api-block">
-        <label>API KEY — OPENROUTESERVICE</label>
-        <div class="pass-wrap" style="margin-bottom:4px">
-          <input type="password" id="api-key" placeholder="Pega aquí tu API key..." oninput="saveApiKey()" autocomplete="off" spellcheck="false">
-          <button class="btn-eye" onclick="togglePw('api-key')" type="button">👁</button>
+        <label>ESTADO DEL SISTEMA</label>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+          <div class="sys-row"><span>🗺️ Routing</span><span class="sys-ok">OSRM · Activo</span></div>
+          <div class="sys-row"><span>📡 Elevación</span><span class="sys-ok">Open-Meteo · Activo</span></div>
+          <div class="sys-row"><span>🔍 Geocodificación</span><span class="sys-ok">Nominatim OSM · Activo</span></div>
         </div>
-        <div class="api-hint">Gratis en <a href="https://openrouteservice.org" target="_blank">openrouteservice.org</a> · Opcional (funciona sin ella)</div>
+        <div class="api-hint" style="margin-top:10px">Todos los servicios son gratuitos y no requieren configuración.</div>
       </div>
       <button class="btn btn-primary" style="margin-top:18px" onclick="closePanel('p-settings')">LISTO ✓</button>
     </div>
@@ -862,7 +885,7 @@ function init(){
   applyTheme(S.theme);
   $('tog-sound').checked=S.soundOn;
   $('tog-notif').checked=S.notifOn;
-  if(S.orsKey) $('api-key').value=S.orsKey;
+  // orsKey guardado pero sin campo visible
   if(S.user){ showScreen('main'); refreshVC() }
   else showScreen('login');
 }
@@ -1941,7 +1964,10 @@ function navUpdate(lat,lng,spd,brg,alt){
   checkPeakAlert(S.distKm);
   updateInfoBar();
   if(S.navMode==='gps') checkReroute(lat,lng);
-  if(S.totalKm-S.distKm<0.05) arrived();
+  // Llegada: solo cuando simIdx en el final, o >99% recorrido Y cerca físicamente del destino
+  if(S.navMode==='sim') return; // simTick maneja su propio arrived()
+  const last=S.geo[S.geo.length-1];
+  if(last&&hav(lat,lng,last[0],last[1])<80) arrived(); // <80m del destino real
 }
 
 // ══════════════════════════════════
@@ -1974,18 +2000,40 @@ function stopSim(){ if(S.simTimer){ clearInterval(S.simTimer); S.simTimer=null }
 
 function simTick(){
   const geo=S.geo; if(!geo.length) return;
-  const mps=S.simSpeed/3.6;
+  const mps=S.simSpeed/3.6; // metros por segundo
   let moved=0;
   while(moved<mps&&S.simIdx<geo.length-1){
     const d=hav(geo[S.simIdx][0],geo[S.simIdx][1],geo[S.simIdx+1][0],geo[S.simIdx+1][1]);
-    if(moved+d<=mps){ moved+=d; S.simIdx++ } else break;
+    if(moved+d<=mps+1){ moved+=d; S.simIdx++ } else break;
   }
-  if(S.simIdx>=geo.length-1){ arrived(); return }
+  if(S.simIdx>=geo.length-1){ S.simIdx=geo.length-1; arrived(); return }
   const p=geo[S.simIdx], n=geo[Math.min(S.simIdx+1,geo.length-1)];
-  navUpdate(p[0],p[1],S.simSpeed,bearing(p[0],p[1],n[0],n[1]),p[2]);
+  // Calcular distKm directamente desde simIdx (no desde closestPt)
+  // para evitar desincronía en rutas con geometría densa
+  let cum=0;
+  for(let i=0;i<S.simIdx&&i<geo.length-1;i++){
+    cum+=hav(geo[i][0],geo[i][1],geo[i+1][0],geo[i+1][1])/1000;
+  }
+  S.distKm=cum; S.geoIdx=S.simIdx;
+  // Actualizar elevIdx
+  S.elevIdx=S.elevData.findIndex(p2=>p2.km>=cum); if(S.elevIdx<0) S.elevIdx=S.elevData.length-1;
+  const sl=S.elevData[S.elevIdx]?.sl||0;
+  updateBat(0.02, sl, S.simSpeed); // simular ~20m por tick
+  const {sIdx,dist}=findStep(S.simIdx);
+  S.stepIdx=sIdx; S.distToStep=dist;
+  updateMvrBanner(sIdx,dist);
+  if(S.mapMode==="heading") setMapBearing(bearing(p[0],p[1],n[0],n[1]));
+  setMapView(p[0],p[1],S.simSpeed,dist,dist<20);
+  $("speed-val").textContent=Math.round(S.simSpeed);
+  updateElevChart(cum);
+  checkPeakAlert(cum);
+  updateInfoBar();
 }
 
-function onSimSpeed(){ S.simSpeed=+$('sim-sl').value; $('sim-speed-lbl').textContent=S.simSpeed+' km/h' }
+function onSimSpeed(){
+  S.simSpeed=+$('sim-sl').value;
+  $('sim-speed-lbl').textContent=S.simSpeed+' km/h';
+}
 
 // ══════════════════════════════════
 // START / STOP NAVIGATION
@@ -2002,8 +2050,11 @@ function startNav(mode){
     // Resize chart after map init (can shift layout)
     setTimeout(()=>{ if(S.elevChart){ const w=$('elev-chart-wrap'); S.elevChart.resize(w.clientWidth||300,w.clientHeight||120) } },400);
     updateElevChart(0);
-    $('sim-ctrl').style.display=mode==='sim'?'':'none';
+    $('sim-speed-float').style.display=mode==='sim'?'block':'none'; // legacy, no usado
+  const ssf=$('sim-speed-float');
+  if(ssf) ssf.classList.toggle('show', mode==='sim');
     $('demo-badge').style.display=mode==='sim'?'':'none';
+    $('sim-speed-float').style.display=mode==='sim'?'block':'none';
     $('elev-toggle').textContent=ELEV_MODES[1][0]; $('elev-toggle').style.borderColor=''; $('elev-toggle').style.color='';
     if(S.steps.length) updateMvrBanner(0,S.steps[0].distance||0);
     if(mode==='gps'){
