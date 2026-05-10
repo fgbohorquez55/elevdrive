@@ -116,6 +116,12 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 .sugg{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:0 0 var(--rsm) var(--rsm);z-index:500;max-height:170px;overflow-y:auto;display:none}
 .sugg-item{padding:9px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border)}
 .sugg-item:hover{background:var(--bg2);color:var(--accent)}
+.sugg-loading{color:var(--dim);font-style:italic;cursor:default}
+.sugg-loading:hover{background:transparent;color:var(--dim)}
+.sugg-empty{color:var(--muted);font-size:11px;cursor:default;text-align:center;padding:12px}
+.sugg-empty:hover{background:transparent;color:var(--muted)}
+.sugg-error{color:var(--yellow);font-size:11px;cursor:default}
+.sugg-error:hover{background:transparent;color:var(--yellow)}
 .bat-sliders{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .sl-group{background:var(--bg2);border-radius:var(--rsm);padding:10px}
 .sl-group label{font-family:var(--fui);font-size:9px;letter-spacing:2px;color:var(--dim);display:block;margin-bottom:5px}
@@ -988,37 +994,112 @@ function createProf(){
 // ══════════════════════════════════
 // GEOCODING
 // ══════════════════════════════════
-function onGeo(type){ clearTimeout(S.geoTimer); const v=$(type==='orig'?'orig-input':'dest-input').value.trim(); if(v.length<2){closeSugg(type);return} S.geoTimer=setTimeout(()=>geocode(v,type),400) }
-function triggerSearch(type){ const v=$(type==='orig'?'orig-input':'dest-input').value.trim(); if(!v){toast('Escribe un lugar para buscar');return} geocode(v,type) }
+function onGeo(type){
+  clearTimeout(S.geoTimer);
+  const v=$(type==='orig'?'orig-input':'dest-input').value.trim();
+  if(v.length<2){ closeSugg(type); return }
+  S.geoTimer=setTimeout(()=>geocode(v,type),500);
+}
+function triggerSearch(type){
+  clearTimeout(S.geoTimer);
+  const v=$(type==='orig'?'orig-input':'dest-input').value.trim();
+  if(!v){ toast('Escribe un lugar para buscar'); return }
+  geocode(v,type);
+}
 function closeSugg(type){ const el=$(type+'-sugg'); el.innerHTML=''; el.style.display='none' }
 
+function showSuggLoading(type){
+  const el=$(type+'-sugg');
+  el.innerHTML='<div class="sugg-item sugg-loading">🔍 Buscando...</div>';
+  el.style.display='block';
+}
+function showSuggEmpty(type){
+  const el=$(type+'-sugg');
+  el.innerHTML='<div class="sugg-item sugg-empty">Sin resultados. Intenta ser más específico.</div>';
+  el.style.display='block';
+}
+
 async function geocode(q,type){
-  let features=[];
+  showSuggLoading(type);
+  let results=[]; // [{lat,lng,name}]
   try{
+    // 1. Try ORS if key available
     if(S.orsKey){
-      const r=await fetch(`${ORS}/geocode/search?api_key=${S.orsKey}&text=${encodeURIComponent(q)}&size=6`);
-      if(r.ok){ const d=await r.json(); features=d.features||[] }
-    } else {
-      const r=await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-      if(r.ok){ const d=await r.json(); features=d.features||[] }
+      const r=await fetch(
+        `${ORS}/geocode/search?api_key=${S.orsKey}&text=${encodeURIComponent(q)}&size=6`,
+        {signal:AbortSignal.timeout(8000)}
+      );
+      if(r.ok){
+        const d=await r.json();
+        results=(d.features||[]).map(f=>({
+          lat:f.geometry.coordinates[1],
+          lng:f.geometry.coordinates[0],
+          name:f.properties.label||f.properties.name
+        }));
+      }
     }
-  }catch(e){ console.warn('Geocode:',e) }
+    // 2. Nominatim fallback (free, no key needed)
+    if(!results.length){
+      const r=await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&addressdetails=1`,
+        {headers:{'Accept-Language':'es','User-Agent':'ElevDrive/6.0'}, signal:AbortSignal.timeout(8000)}
+      );
+      if(r.ok){
+        const d=await r.json();
+        results=d.map(p=>({
+          lat:parseFloat(p.lat),
+          lng:parseFloat(p.lon),
+          name:p.display_name
+        }));
+      }
+    }
+    // 3. Try Netlify proxy last
+    if(!results.length){
+      try{
+        const r=await fetch(`/api/geocode?q=${encodeURIComponent(q)}`,{signal:AbortSignal.timeout(6000)});
+        if(r.ok){
+          const d=await r.json();
+          results=(d.features||[]).map(f=>({
+            lat:f.geometry.coordinates[1],
+            lng:f.geometry.coordinates[0],
+            name:f.properties.label||f.properties.name
+          }));
+        }
+      }catch(e2){ /* proxy unavailable */ }
+    }
+  }catch(e){
+    console.warn('Geocode error:',e);
+    const el=$(type+'-sugg');
+    el.innerHTML='<div class="sugg-item sugg-error">⚠️ Error de conexión. Verifica tu internet.</div>';
+    el.style.display='block';
+    return;
+  }
 
   const el=$(type+'-sugg');
   el.innerHTML='';
-  features.slice(0,6).forEach(f=>{
+  if(!results.length){ showSuggEmpty(type); return }
+  results.forEach(res=>{
     const item=document.createElement('div');
-    item.className='sugg-item'; item.textContent=f.properties.label;
-    item.onclick=()=>pickPlace(f,type); el.appendChild(item);
+    item.className='sugg-item';
+    // Shorten very long names
+    const label=res.name.length>60?res.name.slice(0,58)+'…':res.name;
+    item.textContent=label;
+    item.title=res.name;
+    item.onclick=()=>pickCoords(res.lat,res.lng,res.name,type);
+    el.appendChild(item);
   });
-  el.style.display=el.children.length?'':'none';
+  el.style.display='block';
 }
 
-function pickPlace(f,type){
-  const [lng,lat]=f.geometry.coordinates, name=f.properties.label;
+function pickCoords(lat,lng,name,type){
   if(type==='orig'){ S.origin={lat,lng,name}; $('orig-input').value=name }
   else{ S.dest={lat,lng,name}; $('dest-input').value=name }
   closeSugg(type); checkCalc();
+}
+// Keep old pickPlace for any remaining references
+function pickPlace(f,type){
+  const [lng,lat]=f.geometry.coordinates, name=f.properties.label||f.properties.name||'';
+  pickCoords(lat,lng,name,type);
 }
 function clearLoc(type){
   if(type==='orig'){ S.origin=null; $('orig-input').value='' }
