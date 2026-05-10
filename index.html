@@ -104,9 +104,15 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 .ri-row{display:flex;align-items:center;gap:8px}
 .ri-icon{font-size:18px;flex-shrink:0}
 .ri-field{flex:1;position:relative}
-.ri-field input{width:100%;padding:9px 34px 9px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);color:var(--text);font-size:13px;font-family:var(--fbody);outline:none;transition:border .2s}
+.ri-field input{width:100%;padding:9px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--rsm);color:var(--text);font-size:13px;font-family:var(--fbody);outline:none;transition:border .2s}
 .ri-field input:focus{border-color:var(--accent)}
-.ri-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--dim);cursor:pointer;font-size:13px}
+.ri-action-btn{flex-shrink:0;width:36px;height:36px;border-radius:var(--rsm);border:1px solid var(--border);background:var(--bg2);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;color:var(--text)}
+.ri-action-btn:hover{border-color:var(--accent)}
+.gps-btn{border-color:rgba(0,212,255,.4);background:rgba(0,212,255,.07)}
+.gps-btn:active,.gps-btn.active{background:rgba(0,212,255,.2);border-color:var(--accent)}
+.search-btn{border-color:rgba(0,212,255,.3)}
+.search-btn:active{background:rgba(0,212,255,.15)}
+.clear-btn{font-size:12px;color:var(--dim)}
 .sugg{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:0 0 var(--rsm) var(--rsm);z-index:500;max-height:170px;overflow-y:auto;display:none}
 .sugg-item{padding:9px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border)}
 .sugg-item:hover{background:var(--bg2);color:var(--accent)}
@@ -363,22 +369,26 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 
     <!-- Planificador de ruta -->
     <div class="route-card">
+      <!-- ORIGEN -->
       <div class="ri-row">
         <span class="ri-icon">📍</span>
         <div class="ri-field" id="orig-wrap">
-          <input type="text" id="orig-input" placeholder="Salida · GPS o escribe..." oninput="onGeo('orig')" onfocus="closeSugg('dest')" autocomplete="off">
-          <button class="ri-clear" onclick="clearLoc('orig')">✕</button>
+          <input type="text" id="orig-input" placeholder="Salida — escribe o usa GPS" oninput="onGeo('orig')" onfocus="closeSugg('dest')" autocomplete="off">
           <div class="sugg" id="orig-sugg"></div>
         </div>
+        <button class="ri-action-btn gps-btn" onclick="useGPS()" title="Usar mi ubicación actual">📍</button>
+        <button class="ri-action-btn clear-btn" onclick="clearLoc('orig')" title="Limpiar">✕</button>
       </div>
       <div style="height:1px;background:var(--border);margin-left:26px"></div>
+      <!-- DESTINO -->
       <div class="ri-row">
         <span class="ri-icon">🏁</span>
         <div class="ri-field" id="dest-wrap">
-          <input type="text" id="dest-input" placeholder="Destino..." oninput="onGeo('dest')" onfocus="closeSugg('orig')" autocomplete="off">
-          <button class="ri-clear" onclick="clearLoc('dest')">✕</button>
+          <input type="text" id="dest-input" placeholder="Destino — escribe y busca 🔍" oninput="onGeo('dest')" onfocus="closeSugg('orig')" autocomplete="off" onkeydown="if(event.key==='Enter') triggerSearch('dest')">
           <div class="sugg" id="dest-sugg"></div>
         </div>
+        <button class="ri-action-btn search-btn" onclick="triggerSearch('dest')" title="Buscar destino">🔍</button>
+        <button class="ri-action-btn clear-btn" onclick="clearLoc('dest')" title="Limpiar">✕</button>
       </div>
 
       <!-- Sliders batería -->
@@ -978,7 +988,8 @@ function createProf(){
 // ══════════════════════════════════
 // GEOCODING
 // ══════════════════════════════════
-function onGeo(type){ clearTimeout(S.geoTimer); const v=$(type==='orig'?'orig-input':'dest-input').value.trim(); if(v.length<3){closeSugg(type);return} S.geoTimer=setTimeout(()=>geocode(v,type),420) }
+function onGeo(type){ clearTimeout(S.geoTimer); const v=$(type==='orig'?'orig-input':'dest-input').value.trim(); if(v.length<2){closeSugg(type);return} S.geoTimer=setTimeout(()=>geocode(v,type),400) }
+function triggerSearch(type){ const v=$(type==='orig'?'orig-input':'dest-input').value.trim(); if(!v){toast('Escribe un lugar para buscar');return} geocode(v,type) }
 function closeSugg(type){ const el=$(type+'-sugg'); el.innerHTML=''; el.style.display='none' }
 
 async function geocode(q,type){
@@ -995,12 +1006,7 @@ async function geocode(q,type){
 
   const el=$(type+'-sugg');
   el.innerHTML='';
-  if(type==='orig'){
-    const gps=document.createElement('div');
-    gps.className='sugg-item'; gps.innerHTML='📍 Usar mi ubicación actual';
-    gps.onclick=useGPS; el.appendChild(gps);
-  }
-  features.slice(0,5).forEach(f=>{
+  features.slice(0,6).forEach(f=>{
     const item=document.createElement('div');
     item.className='sugg-item'; item.textContent=f.properties.label;
     item.onclick=()=>pickPlace(f,type); el.appendChild(item);
@@ -1022,12 +1028,20 @@ function clearLoc(type){
 }
 function useGPS(){
   closeSugg('orig');
-  if(!navigator.geolocation){ toast('GPS no disponible'); return }
-  $('orig-input').value='📍 Obteniendo...';
+  if(!navigator.geolocation){ toast('GPS no disponible en este dispositivo'); return }
+  const btn=document.querySelector('.gps-btn');
+  if(btn) btn.classList.add('active');
+  $('orig-input').value='📍 Obteniendo ubicación...';
   navigator.geolocation.getCurrentPosition(p=>{
-    S.origin={lat:p.coords.latitude,lng:p.coords.longitude,name:'Mi ubicación actual'};
-    $('orig-input').value='📍 Mi ubicación actual'; checkCalc();
-  },()=>{ toast('No se pudo obtener GPS'); $('orig-input').value='' });
+    S.origin={lat:p.coords.latitude,lng:p.coords.longitude,name:'📍 Mi ubicación actual'};
+    $('orig-input').value='📍 Mi ubicación actual';
+    if(btn) btn.classList.remove('active');
+    checkCalc(); toast('✓ Ubicación obtenida');
+  },e=>{
+    if(btn) btn.classList.remove('active');
+    $('orig-input').value='';
+    toast(e.code===1?'Permiso GPS denegado':'No se pudo obtener GPS');
+  },{enableHighAccuracy:true,timeout:12000,maximumAge:30000});
 }
 function checkCalc(){
   const ok=S.origin&&S.dest&&S.vehicle;
