@@ -1158,7 +1158,7 @@ async function calcRoute(){
   const body={
     coordinates:[[S.origin.lng,S.origin.lat],[S.dest.lng,S.dest.lat]],
     elevation:true, instructions:true, instructions_format:'text',
-    geometry_simplify:false, format:'json'
+    geometry_simplify:false, format:'geojson'
   };
 
   try{
@@ -1204,28 +1204,46 @@ async function calcRoute(){
 
 function cancelCalc(){ S.calcAbort?.abort(); $('ov-calc').classList.remove('show') }
 
-// Procesa respuesta ORS (con elevación)
+// Procesa respuesta ORS — acepta GeoJSON (format:'geojson') o JSON (format:'json')
 function processRouteORS(data){
-  const route=data.routes[0];
-  // SIEMPRE decodificar como 3D si viene de ORS con elevation:true
-  // NO hacer fallback a 2D — corrompe lat/lng desde el punto 3
-  S.geo=decodePoly(route.geometry,true);
-  S.steps=[]; route.segments.forEach(seg=>S.steps.push(...seg.steps));
-  S.totalKm=route.summary.distance/1000;
-  S.totalMin=route.summary.duration/60;
+  let distM, durS;
+
+  if(data.type==='FeatureCollection'&&data.features?.length){
+    // ── GeoJSON format: coordenadas directas [lng, lat, elev] ──────────────
+    const feat=data.features[0];
+    // Cada coordenada es [lng, lat, elevation_m]
+    S.geo=feat.geometry.coordinates.map(c=>[c[1],c[0],c[2]??0]);
+    S.steps=[];
+    (feat.properties?.segments||[]).forEach(seg=>S.steps.push(...(seg.steps||[])));
+    distM=feat.properties?.summary?.distance||0;
+    durS=feat.properties?.summary?.duration||0;
+  } else if(data.routes?.length){
+    // ── JSON format: polyline encodificado (fallback) ──────────────────────
+    const route=data.routes[0];
+    S.geo=decodePoly(route.geometry,true);
+    S.steps=[];
+    (route.segments||[]).forEach(seg=>S.steps.push(...(seg.steps||[])));
+    distM=route.summary?.distance||0;
+    durS=route.summary?.duration||0;
+  } else {
+    toast('⚠️ Respuesta ORS inesperada'); console.error('ORS data:',data); return;
+  }
+
+  S.totalKm=distM/1000;
+  S.totalMin=durS/60;
   buildElevData();
   const batArr=estBatArrival();
-  $('rs-dist').textContent=fmDist(route.summary.distance);
+  $('rs-dist').textContent=fmDist(distM);
   $('rs-time').textContent=fmDur(S.totalMin);
   $('rs-bat').textContent=Math.round(batArr)+'%';
   $('rs-bat').style.color=batArr<15?'var(--red)':batArr<25?'var(--yellow)':'var(--green)';
-  const maxEl=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
-  $('rs-elev').textContent=maxEl>5?Math.round(maxEl)+'m':'cargando...';
+  const hasElev=S.geo.some(p=>p[2]>5);
+  const maxEl=hasElev?Math.max(...S.elevData.map(p=>p.el)):0;
+  $('rs-elev').textContent=hasElev?Math.round(maxEl)+'m':'📡...';
   drawPreview();
   $('route-result').style.display=''; $('calc-wrap').style.display='none';
-  toast('✓ Ruta: '+fmDist(route.summary.distance)+' · '+fmDur(S.totalMin));
-  // Si ORS no devolvió elevación real, enriquece desde Open-Topo-Data
-  if(!S.geo.some(p=>p[2]>5)) enrichElevation();
+  toast('✓ Ruta: '+fmDist(distM)+' · '+fmDur(S.totalMin)+(hasElev?' · ↑'+Math.round(maxEl)+'m':''));
+  if(!hasElev) enrichElevation();
 }
 
 // Procesa respuesta OSRM (sin elevación — fallback gratuito)
@@ -1301,52 +1319,97 @@ function buildElevData(){
 }
 
 // ══════════════════════════════════
-// ELEVATION ENRICHMENT (Open-Topo-Data)
+// ELEVATION ENRICHMENT — Open-Meteo (primario) + Open-Topo-Data (backup)
 // ══════════════════════════════════
 async function enrichElevation(){
   if(!S.geo.length) return;
-  if(S.geo.some(p=>p[2]>5)) return; // Ya tiene elevación real
+  if(S.geo.some(p=>p[2]>5)) return; // Ya tiene elevación real (>5m para evitar falsos 0)
+
+  // Muestrear hasta 100 puntos distribuidos uniformemente
+  const MAX=100;
+  const step=Math.max(1,Math.floor(S.geo.length/MAX));
+  const indices=[];
+  for(let i=0;i<S.geo.length;i+=step) indices.push(i);
+  if(indices[indices.length-1]!==S.geo.length-1) indices.push(S.geo.length-1);
+
+  let elevs=null;
+
+  // ── Intento 1: Open-Meteo (fiable, gratis, sin key, sin rate limit estricto) ──
   try{
-    // Muestrear hasta 100 puntos (límite de la API pública)
-    const MAX=100;
-    const step=Math.max(1,Math.floor(S.geo.length/MAX));
-    const indices=[];
-    for(let i=0;i<S.geo.length;i+=step) indices.push(i);
-    if(indices[indices.length-1]!==S.geo.length-1) indices.push(S.geo.length-1);
-    const locs=indices.map(i=>`${S.geo[i][0].toFixed(5)},${S.geo[i][1].toFixed(5)}`).join('|');
+    const lats=indices.map(i=>S.geo[i][0].toFixed(4)).join(',');
+    const lngs=indices.map(i=>S.geo[i][1].toFixed(4)).join(',');
     const r=await fetch(
-      `https://api.opentopodata.org/v1/srtm30m?locations=${locs}`,
-      {signal:AbortSignal.timeout(15000)}
+      `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lngs}`,
+      {signal:AbortSignal.timeout(10000)}
     );
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    if(d.status!=='OK'||!d.results?.length) throw new Error(d.error||'Sin datos');
-    const elevs=d.results.map(res=>res.elevation??0);
-    // Interpolar elevación para todos los puntos de la geometría
-    S.geo.forEach((p,gi)=>{
-      let lo=0;
-      for(let si=0;si<indices.length-1;si++){
-        if(indices[si]<=gi&&gi<=indices[si+1]){lo=si;break;}
+    if(r.ok){
+      const d=await r.json();
+      if(d.elevation?.length===indices.length){
+        elevs=d.elevation;
+        console.log('Elevation from Open-Meteo OK, sample[0]:',elevs[0]);
       }
-      const hi=Math.min(lo+1,indices.length-1);
-      const span=indices[hi]-indices[lo];
-      const t=span>0?(gi-indices[lo])/span:0;
-      p[2]=elevs[lo]*(1-t)+elevs[hi]*t;
-    });
-    buildElevData();
-    // Actualizar UI con datos reales
-    const maxEl=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
-    const el=$('rs-elev'); if(el) el.textContent=Math.round(maxEl)+'m';
-    // Redibujar preview si está en pantalla principal
-    if($('screen-main')?.classList.contains('active')&&S.prevChart) drawPreview();
-    // Actualizar chart de navegación si está activo
-    if(S.elevChart&&S.navActive) updateElevChart(S.distKm||0);
-    else if(S.elevChart) updateElevChart(0);
-    toast('📡 Elevación: '+Math.round(maxEl)+'m máx · '+Math.round(Math.min(...S.elevData.map(p=>p.el)))+'m mín');
-  }catch(e){
-    console.warn('enrichElevation failed:',e.message);
-    // Falla silenciosa - el usuario sigue teniendo la ruta
+    }
+  }catch(e){ console.warn('Open-Meteo elevation failed:',e.message) }
+
+  // ── Intento 2: Open-Topo-Data (SRTM 30m backup) ─────────────────────────────
+  if(!elevs){
+    try{
+      const MAX2=Math.min(50,indices.length);
+      const step2=Math.max(1,Math.floor(indices.length/MAX2));
+      const idx2=indices.filter((_,i)=>i%step2===0);
+      if(idx2[idx2.length-1]!==indices[indices.length-1]) idx2.push(indices[indices.length-1]);
+      const locs=idx2.map(i=>`${S.geo[i][0].toFixed(5)},${S.geo[i][1].toFixed(5)}`).join('|');
+      const r=await fetch(
+        `https://api.opentopodata.org/v1/srtm30m?locations=${locs}`,
+        {signal:AbortSignal.timeout(12000)}
+      );
+      if(r.ok){
+        const d=await r.json();
+        if(d.status==='OK'&&d.results?.length){
+          // Necesitamos remapear: idx2 → todos los indices
+          const src=d.results.map(res=>res.elevation??0);
+          elevs=indices.map((geoI,ii)=>{
+            // Interpolar entre puntos de idx2
+            let lo=0;
+            for(let si=0;si<idx2.length-1;si++){
+              if(idx2[si]<=geoI&&geoI<=idx2[si+1]){lo=si;break;}
+            }
+            const hi=Math.min(lo+1,src.length-1);
+            const span=idx2[hi]-idx2[lo];
+            const t=span>0?(geoI-idx2[lo])/span:0;
+            return src[lo]*(1-t)+src[hi]*t;
+          });
+          console.log('Elevation from Open-Topo-Data OK, sample[0]:',elevs[0]);
+        }
+      }
+    }catch(e){ console.warn('Open-Topo-Data elevation failed:',e.message) }
   }
+
+  if(!elevs){ console.warn('All elevation sources failed'); return; }
+
+  // Interpolar para TODOS los puntos de la geometría
+  S.geo.forEach((p,gi)=>{
+    let lo=0;
+    for(let si=0;si<indices.length-1;si++){
+      if(indices[si]<=gi&&gi<=indices[si+1]){lo=si;break;}
+    }
+    const hi=Math.min(lo+1,elevs.length-1);
+    const span=indices[hi]-indices[lo];
+    const t=span>0?(gi-indices[lo])/span:0;
+    p[2]=elevs[lo]*(1-t)+elevs[hi]*t;
+  });
+
+  buildElevData();
+
+  const maxEl=Math.max(...S.elevData.map(p=>p.el));
+  const minEl=Math.min(...S.elevData.map(p=>p.el));
+  const elEl=$('rs-elev'); if(elEl) elEl.textContent=Math.round(maxEl)+'m';
+
+  // Actualizar charts
+  if($('screen-main')?.classList.contains('active')&&S.prevChart) drawPreview();
+  if(S.elevChart) updateElevChart(S.distKm||0);
+
+  toast('📡 Elevación: ↑'+Math.round(maxEl)+'m máx · ↓'+Math.round(minEl)+'m mín');
 }
 
 function estBatArrival(){
@@ -1662,16 +1725,26 @@ async function reroute(lat,lng){
   if(S.rerouting) return; S.rerouting=true;
   $('reroute-bar').classList.add('show');
   try{
-    const body={coordinates:[[lng,lat],[S.dest.lng,S.dest.lat]],elevation:true,instructions:true,instructions_format:'text',geometry_simplify:false,format:'json'};
+    const body={coordinates:[[lng,lat],[S.dest.lng,S.dest.lat]],elevation:true,instructions:true,instructions_format:'text',geometry_simplify:false,format:'geojson'};
     let r;
     if(S.orsKey) r=await fetch(`${ORS}/v2/directions/driving-car`,{method:'POST',headers:{'Authorization':S.orsKey,'Content-Type':'application/json'},body:JSON.stringify(body)});
     else r=await fetch('/api/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(r.ok){
-      const data=await r.json(), route=data.routes[0];
-      S.geo=decodePoly(route.geometry,true);
-      // NO fallback 2D: corrompe lat/lng en polyline 3D de ORS
-      S.steps=[]; route.segments.forEach(seg=>S.steps.push(...seg.steps));
-      S.totalKm=route.summary.distance/1000; S.totalMin=route.summary.duration/60;
+      const data=await r.json();
+      let distM,durS;
+      if(data.type==='FeatureCollection'&&data.features?.length){
+        const feat=data.features[0];
+        S.geo=feat.geometry.coordinates.map(c=>[c[1],c[0],c[2]??0]);
+        S.steps=[];
+        (feat.properties?.segments||[]).forEach(seg=>S.steps.push(...(seg.steps||[])));
+        distM=feat.properties?.summary?.distance||0; durS=feat.properties?.summary?.duration||0;
+      } else if(data.routes?.length){
+        const route=data.routes[0];
+        S.geo=decodePoly(route.geometry,true);
+        S.steps=[]; route.segments.forEach(seg=>S.steps.push(...seg.steps));
+        distM=route.summary.distance; durS=route.summary.duration;
+      } else { toast('Error al recalcular'); return; }
+      S.totalKm=distM/1000; S.totalMin=durS/60;
       S.distKm=0; S.geoIdx=0; S.stepIdx=0; buildElevData();
       if(!S.geo.some(p=>p[2]>5)) enrichElevation();
       const ll=S.geo.map(p=>[p[0],p[1]]);
