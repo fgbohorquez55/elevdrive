@@ -199,8 +199,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:var(--fbody);backgr
 .peak-alert.show{display:block}
 .regen-alert{padding:4px 12px;background:rgba(0,255,136,.1);border-bottom:1px solid rgba(0,255,136,.15);font-family:var(--fui);font-size:11px;color:var(--green);display:none;flex-shrink:0}
 .regen-alert.show{display:block}
-#elev-chart-wrap{flex:1;position:relative;min-height:0;overflow:hidden}
-#elev-chart-wrap canvas{position:absolute;inset:0}
+#elev-chart-wrap{flex:1;position:relative;min-height:110px;overflow:hidden}
 
 /* Battery bar */
 .bat-row{padding:6px 12px;border-top:1px solid var(--border);flex-shrink:0}
@@ -1208,8 +1207,9 @@ function cancelCalc(){ S.calcAbort?.abort(); $('ov-calc').classList.remove('show
 // Procesa respuesta ORS (con elevación)
 function processRouteORS(data){
   const route=data.routes[0];
+  // SIEMPRE decodificar como 3D si viene de ORS con elevation:true
+  // NO hacer fallback a 2D — corrompe lat/lng desde el punto 3
   S.geo=decodePoly(route.geometry,true);
-  if(S.geo.every(p=>p[2]===0)) S.geo=decodePoly(route.geometry,false);
   S.steps=[]; route.segments.forEach(seg=>S.steps.push(...seg.steps));
   S.totalKm=route.summary.distance/1000;
   S.totalMin=route.summary.duration/60;
@@ -1220,10 +1220,12 @@ function processRouteORS(data){
   $('rs-bat').textContent=Math.round(batArr)+'%';
   $('rs-bat').style.color=batArr<15?'var(--red)':batArr<25?'var(--yellow)':'var(--green)';
   const maxEl=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
-  $('rs-elev').textContent=maxEl>0?Math.round(maxEl)+'m':'—';
+  $('rs-elev').textContent=maxEl>5?Math.round(maxEl)+'m':'cargando...';
   drawPreview();
   $('route-result').style.display=''; $('calc-wrap').style.display='none';
   toast('✓ Ruta: '+fmDist(route.summary.distance)+' · '+fmDur(S.totalMin));
+  // Si ORS no devolvió elevación real, enriquece desde Open-Topo-Data
+  if(!S.geo.some(p=>p[2]>5)) enrichElevation();
 }
 
 // Procesa respuesta OSRM (sin elevación — fallback gratuito)
@@ -1261,7 +1263,8 @@ function processRouteOSRM(data){
   $('rs-elev').textContent='—';
   drawPreview();
   $('route-result').style.display=''; $('calc-wrap').style.display='none';
-  toast('✓ Ruta: '+fmDist(route.distance)+' · '+fmDur(S.totalMin)+' · Agrega API Key para elevación');
+  toast('✓ Ruta: '+fmDist(route.distance)+' · '+fmDur(S.totalMin));
+  enrichElevation(); // Obtiene elevación real desde Open-Topo-Data
 }
 
 function osrmType(mvr){
@@ -1295,6 +1298,55 @@ function buildElevData(){
     const slope=d>0.5?((p[2]-prevEl)/d)*100:0;
     S.elevData.push({km:cum,el:p[2],la:p[0],lo:p[1],sl:Math.max(-25,Math.min(25,slope))});
   });
+}
+
+// ══════════════════════════════════
+// ELEVATION ENRICHMENT (Open-Topo-Data)
+// ══════════════════════════════════
+async function enrichElevation(){
+  if(!S.geo.length) return;
+  if(S.geo.some(p=>p[2]>5)) return; // Ya tiene elevación real
+  try{
+    // Muestrear hasta 100 puntos (límite de la API pública)
+    const MAX=100;
+    const step=Math.max(1,Math.floor(S.geo.length/MAX));
+    const indices=[];
+    for(let i=0;i<S.geo.length;i+=step) indices.push(i);
+    if(indices[indices.length-1]!==S.geo.length-1) indices.push(S.geo.length-1);
+    const locs=indices.map(i=>`${S.geo[i][0].toFixed(5)},${S.geo[i][1].toFixed(5)}`).join('|');
+    const r=await fetch(
+      `https://api.opentopodata.org/v1/srtm30m?locations=${locs}`,
+      {signal:AbortSignal.timeout(15000)}
+    );
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(d.status!=='OK'||!d.results?.length) throw new Error(d.error||'Sin datos');
+    const elevs=d.results.map(res=>res.elevation??0);
+    // Interpolar elevación para todos los puntos de la geometría
+    S.geo.forEach((p,gi)=>{
+      let lo=0;
+      for(let si=0;si<indices.length-1;si++){
+        if(indices[si]<=gi&&gi<=indices[si+1]){lo=si;break;}
+      }
+      const hi=Math.min(lo+1,indices.length-1);
+      const span=indices[hi]-indices[lo];
+      const t=span>0?(gi-indices[lo])/span:0;
+      p[2]=elevs[lo]*(1-t)+elevs[hi]*t;
+    });
+    buildElevData();
+    // Actualizar UI con datos reales
+    const maxEl=S.elevData.length?Math.max(...S.elevData.map(p=>p.el)):0;
+    const el=$('rs-elev'); if(el) el.textContent=Math.round(maxEl)+'m';
+    // Redibujar preview si está en pantalla principal
+    if($('screen-main')?.classList.contains('active')&&S.prevChart) drawPreview();
+    // Actualizar chart de navegación si está activo
+    if(S.elevChart&&S.navActive) updateElevChart(S.distKm||0);
+    else if(S.elevChart) updateElevChart(0);
+    toast('📡 Elevación: '+Math.round(maxEl)+'m máx · '+Math.round(Math.min(...S.elevData.map(p=>p.el)))+'m mín');
+  }catch(e){
+    console.warn('enrichElevation failed:',e.message);
+    // Falla silenciosa - el usuario sigue teniendo la ruta
+  }
 }
 
 function estBatArrival(){
@@ -1356,21 +1408,39 @@ function drawPreview(){
 
 function initNavChart(){
   if(S.elevChart){ S.elevChart.destroy(); S.elevChart=null }
-  const canvas=$('elev-canvas'), ctx=canvas.getContext('2d');
+  const wrap=$('elev-chart-wrap');
+  const canvas=$('elev-canvas');
+  // Dimensionar explícitamente antes de que Chart.js lea el canvas
+  const w=wrap.clientWidth||wrap.offsetWidth||300;
+  const h=wrap.clientHeight||wrap.offsetHeight||120;
+  canvas.width=w; canvas.height=h;
+  canvas.style.width=w+'px'; canvas.style.height=h+'px';
+  const ctx=canvas.getContext('2d');
   S.elevChart=new Chart(ctx,{
     type:'line',
     data:{labels:[],datasets:[{data:[],fill:true,
       backgroundColor:'rgba(0,212,255,.1)',borderColor:'#00d4ff',
       borderWidth:1.5,pointRadius:0,tension:.3,
       segment:{backgroundColor:c=>segColor(c,'bg'),borderColor:c=>segColor(c,'border')}}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},
-      plugins:{legend:{display:false},tooltip:{enabled:false},cursor:{}},
+    options:{responsive:false,maintainAspectRatio:false,animation:{duration:150},
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
       scales:{
         x:{display:true,grid:{color:'rgba(90,112,153,.1)'},ticks:{color:'#5a7099',font:{size:8,family:'Orbitron'},maxTicksLimit:5}},
         y:{display:true,grid:{color:'rgba(90,112,153,.1)'},ticks:{color:'#5a7099',font:{size:8,family:'Orbitron'},maxTicksLimit:4,callback:v=>Math.round(v)+'m'}}
       }},
     plugins:[cursorPlugin]
   });
+  // Resize after layout fully settles (mobile flex puede tardar 2 frames)
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(!S.elevChart) return;
+    const nw=wrap.clientWidth||wrap.offsetWidth;
+    const nh=wrap.clientHeight||wrap.offsetHeight;
+    if(nw>10 && nh>10){
+      canvas.width=nw; canvas.height=nh;
+      canvas.style.width=nw+'px'; canvas.style.height=nh+'px';
+      S.elevChart.resize(nw,nh);
+    }
+  }));
 }
 
 function updateElevChart(currentKm){
@@ -1599,10 +1669,11 @@ async function reroute(lat,lng){
     if(r.ok){
       const data=await r.json(), route=data.routes[0];
       S.geo=decodePoly(route.geometry,true);
-      if(S.geo.every(p=>p[2]===0)) S.geo=decodePoly(route.geometry,false);
+      // NO fallback 2D: corrompe lat/lng en polyline 3D de ORS
       S.steps=[]; route.segments.forEach(seg=>S.steps.push(...seg.steps));
       S.totalKm=route.summary.distance/1000; S.totalMin=route.summary.duration/60;
       S.distKm=0; S.geoIdx=0; S.stepIdx=0; buildElevData();
+      if(!S.geo.some(p=>p[2]>5)) enrichElevation();
       const ll=S.geo.map(p=>[p[0],p[1]]);
       S.routeLayer?.setLatLngs(ll); S.routeBg?.setLatLngs(ll);
       updateElevChart(0); toast('🔄 Ruta recalculada');
@@ -1696,6 +1767,8 @@ function startNav(mode){
   showScreen('nav');
   setTimeout(()=>{
     initMap(); initNavChart();
+    // Resize chart after map init (can shift layout)
+    setTimeout(()=>{ if(S.elevChart){ const w=$('elev-chart-wrap'); S.elevChart.resize(w.clientWidth||300,w.clientHeight||120) } },400);
     updateElevChart(0);
     $('sim-ctrl').style.display=mode==='sim'?'':'none';
     $('demo-badge').style.display=mode==='sim'?'':'none';
@@ -1769,8 +1842,23 @@ function playRegen(){
 // ══════════════════════════════════
 // RESIZE / ORIENTATION
 // ══════════════════════════════════
-window.addEventListener('orientationchange',()=>setTimeout(()=>{ S.map?.invalidateSize(); S.elevChart?.resize() },350));
-window.addEventListener('resize',()=>{ S.map?.invalidateSize(); S.elevChart?.resize() });
+window.addEventListener('orientationchange',()=>setTimeout(()=>{
+  S.map?.invalidateSize();
+  if(S.elevChart){
+    const w=$('elev-chart-wrap');
+    const nw=w.clientWidth||300, nh=w.clientHeight||120;
+    $('elev-canvas').width=nw; $('elev-canvas').height=nh;
+    S.elevChart.resize(nw,nh);
+  }
+},400));
+window.addEventListener('resize',()=>{
+  S.map?.invalidateSize();
+  if(S.elevChart){
+    const w=$('elev-chart-wrap');
+    const nw=w.clientWidth||300, nh=w.clientHeight||120;
+    if(nw>10&&nh>10){ $('elev-canvas').width=nw; $('elev-canvas').height=nh; S.elevChart.resize(nw,nh); }
+  }
+});
 
 // ══════════════════════════════════
 // CLICK OUTSIDE SUGGESTIONS
