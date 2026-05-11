@@ -756,6 +756,70 @@ const ELEV_MODES = [
   ['AUTO ⚡',      0,   0  ],  // dinámico por velocidad
 ];
 
+// ══════════════════════════════════
+// PLANES DE USUARIO
+// Para activar/desactivar features por plan, editar solo este objeto.
+// Planes: 'free' | 'personal' | 'familiar' | 'pro'
+// ══════════════════════════════════
+const PLANES = {
+  free: {
+    nombre: 'Gratuito',
+    max_perfiles: 1,
+    simulacion: true,          // Simulación de ruta
+    elevacion_ventanas: 2,     // Solo 8km y ruta completa (índices 0 y 1 de ELEV_MODES)
+    alertas_audio: false,      // Alertas de subida/regen solo visual, sin sonido
+    rerouting: false,          // Sin recalculo automático de ruta
+    historial_viajes: false,   // Sin historial
+    calibracion: false,        // Sin calibración de consumo
+    temas: ['dark'],           // Solo tema oscuro
+    velocidad_sim_max: 120,    // km/h máx en simulación
+  },
+  personal: {
+    nombre: 'Personal',
+    max_perfiles: 2,
+    simulacion: true,
+    elevacion_ventanas: 5,     // Todos los modos (1km, 4km, 8km, auto, completa)
+    alertas_audio: true,
+    rerouting: true,
+    historial_viajes: true,    // Últimos 20 viajes
+    calibracion: true,
+    temas: ['dark','light','midnight'],
+    velocidad_sim_max: 200,
+  },
+  familiar: {
+    nombre: 'Familiar',
+    max_perfiles: 3,
+    simulacion: true,
+    elevacion_ventanas: 5,
+    alertas_audio: true,
+    rerouting: true,
+    historial_viajes: true,    // Últimos 50 viajes
+    calibracion: true,
+    temas: ['dark','light','midnight'],
+    velocidad_sim_max: 200,
+  },
+  pro: {
+    nombre: 'Pro',
+    max_perfiles: 10,
+    simulacion: true,
+    elevacion_ventanas: 5,
+    alertas_audio: true,
+    rerouting: true,
+    historial_viajes: true,
+    calibracion: true,
+    temas: ['dark','light','midnight'],
+    velocidad_sim_max: 200,
+    export_gpx: true,          // Exportar ruta como GPX (futuro)
+    api_access: true,          // Acceso a API propia (futuro)
+  }
+};
+
+// Helper: obtener plan activo del usuario
+function getPlan(){ return PLANES[S.user?.plan || 'free'] || PLANES.free }
+
+// Helper: verificar si una feature está disponible en el plan actual
+function canUse(feature){ return !!getPlan()[feature] }
+
 // ORS step type → icon/label
 const MVR = {
   0:{ic:'L',lbl:'Girar a la izquierda'},1:{ic:'R',lbl:'Girar a la derecha'},
@@ -798,7 +862,7 @@ const S = {
   distKm:0, geoIdx:0, elevIdx:0,
   stepIdx:0, distToStep:0, inManeuver:false,
   devStart:null, rerouting:false,
-  gpsWatch:null, simTimer:null, simIdx:0, simSpeed:72,
+  gpsWatch:null, simTimer:null, simIdx:0, simSpeed:72, simDistKm:0,
   tripStart:null,
   map:null, routeLayer:null, routeBg:null, destMkr:null,
   prevChart:null, elevChart:null,
@@ -877,6 +941,8 @@ function distToRoute(lat,lng){
 function init(){
   S.users=ld('users',[]);
   S.user=ld('user',null);
+  // Plan actual — se actualizará desde Supabase en Fase 2
+  if(S.user && !S.user.plan) S.user.plan='free';
   S.vehicle=ld('vehicle',null);
   S.theme=ld('theme','dark');
   S.soundOn=ld('sound',false);
@@ -939,8 +1005,6 @@ function openPanel(id){
 }
 function closePanel(id){
   if(id==='p-settings'){
-    S.orsKey=($('api-key').value||'').trim();
-    sv('orsKey',S.orsKey);
     S.soundOn=$('tog-sound').checked;
     S.notifOn=$('tog-notif').checked;
     sv('sound',S.soundOn); sv('notif',S.notifOn);
@@ -996,6 +1060,7 @@ function onFuelSlide(){ S.fuelPct=+$('fuel-sl').value; $('fuel-val').textContent
 // SETTINGS
 // ══════════════════════════════════
 function setTheme(t){
+  if(!getPlan().temas.includes(t)){ toast('🔒 Tema disponible en plan Personal o superior'); return }
   S.theme=t; sv('theme',t); applyTheme(t);
   document.querySelectorAll('.th-opt').forEach(e=>e.classList.remove('active'));
   $('th-'+t).classList.add('active');
@@ -1014,7 +1079,7 @@ function syncAlertBtns(){
   const on=S.soundOn;
   [$('main-alert-btn'),$('nav-alert-btn')].forEach(b=>{ if(b){ b.textContent=on?'🔔':'🔕'; b.classList.toggle('on',on) } });
 }
-function saveApiKey(){ S.orsKey=$('api-key').value.trim(); sv('orsKey',S.orsKey) }
+function saveApiKey(){ /* api-key field removed — orsKey unused */ }
 function updateTiles(){
   if(!S.map)return;
   S.map.eachLayer(l=>{ if(l instanceof L.TileLayer) S.map.removeLayer(l) });
@@ -1189,7 +1254,7 @@ function checkCalc(){
 // ROUTE CALCULATION
 // ══════════════════════════════════
 async function calcRoute(){
-  const keyEl=$('api-key'); if(keyEl) S.orsKey=keyEl.value.trim();
+  // S.orsKey leído de localStorage en init()
   if(!S.origin||!S.dest){ toast('⚠️ Selecciona salida y destino'); return }
   if(!S.vehicle){ toast('⚠️ Configura tu vehículo primero'); openPanel('p-vehicle'); return }
 
@@ -1660,7 +1725,8 @@ function updateElevChart(currentKm){
 }
 
 function toggleElev(){
-  S.elevWin=(S.elevWin+1)%ELEV_MODES.length;
+  const maxWin=getPlan().elevacion_ventanas;
+  S.elevWin=(S.elevWin+1)%Math.min(maxWin,ELEV_MODES.length);
   $('elev-toggle').textContent=ELEV_MODES[S.elevWin][0];
   $('elev-toggle').style.borderColor=S.elevWin===ELEV_MODES.length-1?'var(--yellow)':'';
   $('elev-toggle').style.color=S.elevWin===ELEV_MODES.length-1?'var(--yellow)':'';
@@ -1791,7 +1857,7 @@ function updateBat(dKm,slope,spd){
     if(_alertState!=='regen'){
       _alertState='regen';
       showDrvAlert('regen','⚡','REGEN ACTIVO · Recuperando energía',4000);
-      if(S.soundOn) playRegen();
+      if(S.soundOn && canUse('alertas_audio')) playRegen();
     }
   } else {
     const sf=1+Math.max(0,slope)/100*4;
@@ -1850,7 +1916,7 @@ function checkPeakAlert(currentKm){
       const severity=climb.sl>15?'⛔':'⚠️';
       const label=climb.sl>15?'SUBIDA MUY PRONUNCIADA':'SUBIDA PRONUNCIADA';
       showDrvAlert('climb', severity, `${label} ${climb.sl.toFixed(0)}% · ${distToClimb.toFixed(1)} km`, 6000);
-      if(S.soundOn) playClimbAlert(climb.sl);
+      if(S.soundOn && canUse('alertas_audio')) playClimbAlert(climb.sl);
     }
   } else {
     $('peak-alert').classList.remove('show');
@@ -1895,7 +1961,7 @@ function updateInfoBar(){
 // REROUTING
 // ══════════════════════════════════
 async function checkReroute(lat,lng){
-  if(S.navMode!=='gps'||S.rerouting||!S.geo.length) return;
+  if(S.navMode!=='gps'||S.rerouting||!S.geo.length||!canUse('rerouting')) return;
   const d=distToRoute(lat,lng);
   if(d>DEV_DIST){
     if(!S.devStart) S.devStart=Date.now();
@@ -2000,38 +2066,48 @@ function stopSim(){ if(S.simTimer){ clearInterval(S.simTimer); S.simTimer=null }
 
 function simTick(){
   const geo=S.geo; if(!geo.length) return;
-  const mps=S.simSpeed/3.6; // metros por segundo
+  const mps=S.simSpeed/3.6;
+  // Avanzar índice punto a punto según velocidad
   let moved=0;
-  while(moved<mps&&S.simIdx<geo.length-1){
+  while(moved<mps && S.simIdx<geo.length-1){
     const d=hav(geo[S.simIdx][0],geo[S.simIdx][1],geo[S.simIdx+1][0],geo[S.simIdx+1][1]);
-    if(moved+d<=mps+1){ moved+=d; S.simIdx++ } else break;
+    // Acumulador incremental: sumar solo el delta de este paso (O(1), no O(N))
+    S.simDistKm+=(d/1000);
+    moved+=d;
+    S.simIdx++;
   }
-  if(S.simIdx>=geo.length-1){ S.simIdx=geo.length-1; arrived(); return }
-  const p=geo[S.simIdx], n=geo[Math.min(S.simIdx+1,geo.length-1)];
-  // Calcular distKm directamente desde simIdx (no desde closestPt)
-  // para evitar desincronía en rutas con geometría densa
-  let cum=0;
-  for(let i=0;i<S.simIdx&&i<geo.length-1;i++){
-    cum+=hav(geo[i][0],geo[i][1],geo[i+1][0],geo[i+1][1])/1000;
+  if(S.simIdx>=geo.length-1){
+    S.simIdx=geo.length-1;
+    S.distKm=S.totalKm;
+    arrived();
+    return;
   }
-  S.distKm=cum; S.geoIdx=S.simIdx;
-  // Actualizar elevIdx
-  S.elevIdx=S.elevData.findIndex(p2=>p2.km>=cum); if(S.elevIdx<0) S.elevIdx=S.elevData.length-1;
+  const p=geo[S.simIdx];
+  const n=geo[Math.min(S.simIdx+1,geo.length-1)];
+  S.distKm=S.simDistKm;
+  S.geoIdx=S.simIdx;
+  // elevIdx: buscar solo desde el último elevIdx (no desde 0)
+  while(S.elevIdx<S.elevData.length-1 && S.elevData[S.elevIdx+1].km<=S.simDistKm) S.elevIdx++;
   const sl=S.elevData[S.elevIdx]?.sl||0;
-  updateBat(0.02, sl, S.simSpeed); // simular ~20m por tick
+  const deltaDist=mps/1000; // km recorridos este tick
+  updateBat(deltaDist, sl, S.simSpeed);
+  const brg=bearing(p[0],p[1],n[0],n[1]);
   const {sIdx,dist}=findStep(S.simIdx);
   S.stepIdx=sIdx; S.distToStep=dist;
   updateMvrBanner(sIdx,dist);
-  if(S.mapMode==="heading") setMapBearing(bearing(p[0],p[1],n[0],n[1]));
+  if(S.mapMode==='heading') setMapBearing(brg);
   setMapView(p[0],p[1],S.simSpeed,dist,dist<20);
-  $("speed-val").textContent=Math.round(S.simSpeed);
-  updateElevChart(cum);
-  checkPeakAlert(cum);
+  $('speed-val').textContent=Math.round(S.simSpeed);
+  updateElevChart(S.simDistKm);
+  checkPeakAlert(S.simDistKm);
   updateInfoBar();
 }
 
 function onSimSpeed(){
-  S.simSpeed=+$('sim-sl').value;
+  const raw=+$('sim-sl').value;
+  const maxV=getPlan().velocidad_sim_max||120;
+  S.simSpeed=Math.min(raw,maxV);
+  if(raw>maxV){ $('sim-sl').value=maxV; toast('🔒 Vel. máx plan '+getPlan().nombre+': '+maxV+' km/h') }
   $('sim-speed-lbl').textContent=S.simSpeed+' km/h';
 }
 
@@ -2041,7 +2117,7 @@ function onSimSpeed(){
 function startNav(mode){
   if(!S.geo.length||!S.vehicle) return;
   S.navMode=mode; S.navActive=true;
-  S.distKm=0; S.geoIdx=0; S.simIdx=0; S.stepIdx=0;
+  S.distKm=0; S.geoIdx=0; S.simIdx=0; S.simDistKm=0; S.stepIdx=0;
   S.batKwh=S.vehicle.cap*S.batPct/100;
   S.devStart=null; S.showFull=false; S.elevWin=1; S.tripStart=Date.now(); // default: 8KM
   showScreen('nav');
