@@ -766,8 +766,8 @@ const PLANES = {
     nombre: 'Gratuito',
     max_perfiles: 1,
     simulacion: true,          // Simulación de ruta
-    elevacion_ventanas: 2,     // Solo 8km y ruta completa (índices 0 y 1 de ELEV_MODES)
-    alertas_audio: false,      // Alertas de subida/regen solo visual, sin sonido
+    elevacion_ventanas: 5,     // Todos los modos disponibles
+    alertas_audio: true,       // Sonido básico disponible en free
     rerouting: false,          // Sin recalculo automático de ruta
     historial_viajes: false,   // Sin historial
     calibracion: false,        // Sin calibración de consumo
@@ -942,7 +942,7 @@ function init(){
   S.users=ld('users',[]);
   S.user=ld('user',null);
   // Plan actual — se actualizará desde Supabase en Fase 2
-  if(S.user && !S.user.plan) S.user.plan='free';
+  if(S.user && !S.user.plan) S.user.plan='pro'; // PRO para testing — cambiar a 'free' en producción
   S.vehicle=ld('vehicle',null);
   S.theme=ld('theme','dark');
   S.soundOn=ld('sound',false);
@@ -1073,6 +1073,7 @@ function saveSettings(){
   syncAlertBtns();
 }
 function toggleSound(){
+  unlockAudio();
   S.soundOn=!S.soundOn; $('tog-sound').checked=S.soundOn; sv('sound',S.soundOn); syncAlertBtns();
 }
 function syncAlertBtns(){
@@ -1770,20 +1771,44 @@ function setMapBearing(b){
   // Try native (leaflet-rotate)
   if(typeof S.map.setBearing==='function'){ S.map.setBearing(b) }
   else {
-    // CSS fallback on tile/overlay panes
+    // CSS fallback: rotar panes del mapa
     const P=S.map.getPanes();
-    ['tilePane','shadowPane','overlayPane'].forEach(n=>{ if(P[n]){ P[n].style.transformOrigin='50% 50%'; P[n].style.transform=`rotate(${-b}deg)` } });
+    ['tilePane','shadowPane','overlayPane'].forEach(n=>{
+      if(P[n]){ P[n].style.transformOrigin='50% 50%'; P[n].style.transform=`rotate(${-b}deg)` }
+    });
   }
-  // Rotate compass needle opposite
+  // Brújula: aguja apunta siempre al norte real
   const needle=$('compass-needle');
   if(needle) needle.style.transform=`rotate(${-b}deg)`;
+  // Vehículo overlay está FUERA del mapa:
+  // Heading-Up → mapa rota, vehículo siempre ↑ → no rotar el SVG
+  // North-Up   → mapa fijo, vehículo debe rotar para mostrar dirección real
+  const vehSvg=document.querySelector('.veh-svg');
+  if(vehSvg) vehSvg.style.transform=''; // heading-up: sin rotación extra
 }
 
 function resetMapBearing(){
   if(!S.map) return;
   if(typeof S.map.setBearing==='function') S.map.setBearing(0);
-  else { const P=S.map.getPanes(); ['tilePane','shadowPane','overlayPane'].forEach(n=>{ if(P[n]) P[n].style.transform='' }) }
+  else {
+    const P=S.map.getPanes();
+    ['tilePane','shadowPane','overlayPane'].forEach(n=>{ if(P[n]) P[n].style.transform='' });
+  }
   const needle=$('compass-needle'); if(needle) needle.style.transform='';
+}
+
+function updateVehicleHeading(brg){
+  const vehSvg=document.querySelector('.veh-svg');
+  if(!vehSvg) return;
+  if(S.mapMode==='north'){
+    // North-Up: rotar el ícono para mostrar hacia dónde va realmente
+    vehSvg.style.transform=`rotate(${brg}deg)`;
+    vehSvg.style.transformOrigin='50% 50%';
+    vehSvg.style.transition='transform 0.4s ease';
+  } else {
+    // Heading-Up: mapa ya rota → ícono siempre apunta arriba
+    vehSvg.style.transform='';
+  }
 }
 
 function toggleMapMode(){
@@ -1883,9 +1908,11 @@ function updateBat(dKm,slope,spd){
 // ALERTS
 // ══════════════════════════════════
 // ── Sistema de alertas de conducción ─────────────────────────────────────────
-let _alertState='none'; // 'none'|'climb'|'regen'
+let _alertState='none';     // 'none'|'climb'|'regen'
 let _alertTimer=null;
-let _lastAlertKm=-99; // evitar spam
+let _lastAlertKm=-99;        // km donde se disparó la última alerta
+let _lastAlertSlope=0;       // pendiente de la última alerta (para detectar cambio significativo)
+const ALERT_DEBOUNCE_KM=1.5; // mínimo 1.5km entre alertas del mismo tipo
 
 function showDrvAlert(type, icon, msg, durationMs=5000){
   const el=$('drv-alert');
@@ -1902,31 +1929,73 @@ function hideDrvAlert(){
   $('drv-alert')?.classList.remove('show');
 }
 
-function checkPeakAlert(currentKm){
+function findNextSignificantSegment(currentKm, climbThresh, descentThresh){
   const ahead=S.elevData.filter(p=>p.km>currentKm&&p.km<=currentKm+LOOK_KM);
-  const climb=ahead.find(p=>p.sl>5);
-  if(climb){
-    const distToClimb=(climb.km-currentKm);
-    $('peak-txt').textContent=`Subida ${climb.sl.toFixed(0)}% en ${distToClimb.toFixed(1)} km`;
-    $('peak-alert').classList.add('show');
-    // Alerta flotante + sonido si es nueva (cambio de estado o >2km desde última alerta)
-    if(_alertState!=='climb'&&Math.abs(currentKm-_lastAlertKm)>0.5){
-      _alertState='climb';
-      _lastAlertKm=currentKm;
-      const severity=climb.sl>15?'⛔':'⚠️';
-      const label=climb.sl>15?'SUBIDA MUY PRONUNCIADA':'SUBIDA PRONUNCIADA';
-      showDrvAlert('climb', severity, `${label} ${climb.sl.toFixed(0)}% · ${distToClimb.toFixed(1)} km`, 6000);
-      if(S.soundOn && canUse('alertas_audio')) playClimbAlert(climb.sl);
+  if(!ahead.length) return null;
+  let i=0;
+  while(i<ahead.length){
+    const p=ahead[i];
+    const isClimb=p.sl>=climbThresh, isDescent=p.sl<=descentThresh;
+    if(isClimb||isDescent){
+      let j=i+1, sustained=1;
+      const type=isClimb?'climb':'descent';
+      while(j<ahead.length&&j-i<8){
+        if((type==='climb'&&ahead[j].sl>2)||(type==='descent'&&ahead[j].sl<-1)){sustained++;}
+        j++;
+      }
+      if(sustained>=3){
+        const avgSl=ahead.slice(i,i+sustained).reduce((s,pt)=>s+pt.sl,0)/sustained;
+        return{type,dist:p.km-currentKm,slope:avgSl,sustained};
+      }
+    }
+    i++;
+  }
+  return null;
+}
+
+function checkPeakAlert(currentKm){
+  // Pendiente ACTUAL
+  const cur=S.elevData[S.elevIdx];
+  const curSlope=cur?.sl||0;
+  const slopeEl=$('slope-val'),slopeLbl=$('slope-lbl');
+  if(slopeEl&&slopeLbl){
+    slopeEl.textContent=(curSlope>=0?'+':'')+curSlope.toFixed(1)+'%';
+    if(curSlope>3){slopeLbl.textContent='⬆ SUBIDA';slopeEl.style.color='var(--red)';}
+    else if(curSlope<-2){slopeLbl.textContent='⬇ BAJADA/REGEN';slopeEl.style.color='var(--green)';}
+    else{slopeLbl.textContent='→ PLANO';slopeEl.style.color='var(--accent)';}
+  }
+  // Próximo tramo sostenido
+  const next=findNextSignificantSegment(currentKm,5,-3);
+  if(next){
+    const distStr=next.dist<1?(Math.round(next.dist*1000)+'m'):(next.dist.toFixed(1)+' km');
+    if(next.type==='climb'){
+      const sev=next.slope>15?'⛔':'⚠️';
+      const intensity=next.slope>15?'MUY PRONUNCIADA':next.slope>8?'PRONUNCIADA':'MODERADA';
+      $('peak-txt').textContent=`Subida ${intensity} ${next.slope.toFixed(0)}% · en ${distStr}`;
+      $('peak-alert').classList.add('show');
+      $('regen-alert').classList.remove('show');
+      const slopeDiff=Math.abs(next.slope-_lastAlertSlope);
+      const distOk=Math.abs(currentKm-_lastAlertKm)>ALERT_DEBOUNCE_KM;
+      if(_alertState!=='climb'||(distOk&&slopeDiff>4)){
+        _alertState='climb';_lastAlertKm=currentKm;_lastAlertSlope=next.slope;
+        showDrvAlert('climb',sev,`${sev} Subida ${next.slope.toFixed(0)}% en ${distStr}`,6000);
+        if(S.soundOn&&canUse('alertas_audio')) playClimbAlert(next.slope);
+      }
+    } else {
+      $('regen-txt').textContent=`Bajada ${Math.abs(next.slope).toFixed(0)}% en ${distStr} · Oportunidad regen`;
+      $('regen-alert').classList.add('show');
+      $('peak-alert').classList.remove('show');
+      if(_alertState!=='regen'){
+        _alertState='regen';_lastAlertKm=currentKm;_lastAlertSlope=next.slope;
+        showDrvAlert('regen','⚡',`Bajada ${Math.abs(next.slope).toFixed(0)}% en ${distStr} · Regen`,4000);
+      }
     }
   } else {
     $('peak-alert').classList.remove('show');
-    if(_alertState==='climb'){ _alertState='none'; hideDrvAlert() }
+    if(_alertState==='climb'){_alertState='none';hideDrvAlert();}
   }
 }
 
-// ══════════════════════════════════
-// INFO BAR + ETA
-// ══════════════════════════════════
 function updateInfoBar(){
   const remKm=Math.max(0,S.totalKm-S.distKm);
   // ETA: usar tiempo proporcional de ruta original como base,
@@ -2024,6 +2093,7 @@ function navUpdate(lat,lng,spd,brg,alt){
   S.inManeuver=inMvr;
   updateMvrBanner(sIdx,dist);
   if(S.mapMode==='heading') setMapBearing(brg);
+  updateVehicleHeading(brg);
   setMapView(lat,lng,spd,dist,inMvr);
   $('speed-val').textContent=Math.round(spd);
   updateElevChart(S.distKm);
@@ -2096,6 +2166,7 @@ function simTick(){
   S.stepIdx=sIdx; S.distToStep=dist;
   updateMvrBanner(sIdx,dist);
   if(S.mapMode==='heading') setMapBearing(brg);
+  updateVehicleHeading(brg);
   setMapView(p[0],p[1],S.simSpeed,dist,dist<20);
   $('speed-val').textContent=Math.round(S.simSpeed);
   updateElevChart(S.simDistKm);
@@ -2116,6 +2187,7 @@ function onSimSpeed(){
 // ══════════════════════════════════
 function startNav(mode){
   if(!S.geo.length||!S.vehicle) return;
+  unlockAudio(); // Desbloquear en gesto del usuario
   S.navMode=mode; S.navActive=true;
   S.distKm=0; S.geoIdx=0; S.simIdx=0; S.simDistKm=0; S.stepIdx=0;
   S.batKwh=S.vehicle.cap*S.batPct/100;
@@ -2178,67 +2250,100 @@ function newRoute(){
 // SOUNDS
 // ══════════════════════════════════
 let _audioCtx=null;
-function getACtx(){ if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)(); return _audioCtx }
-function mkAudio(fn){ try{ fn(getACtx()) }catch(e){ console.warn('Audio:',e.message) } }
+let _audioUnlocked=false;
 
-// 🏁 LLEGADA — fanfarria ascendente (4 notas)
+function getACtx(){
+  if(!_audioCtx) _audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  // Resume si el browser lo suspendió (política de autoplay)
+  if(_audioCtx.state==='suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+
+// Desbloquear AudioContext en el primer gesto del usuario
+function unlockAudio(){
+  if(_audioUnlocked) return;
+  try{
+    const ctx=getACtx();
+    // Tocar silencio para desbloquear
+    const buf=ctx.createBuffer(1,1,22050);
+    const src=ctx.createBufferSource();
+    src.buffer=buf; src.connect(ctx.destination); src.start(0);
+    _audioUnlocked=true;
+    console.log('Audio unlocked, state:', ctx.state);
+  }catch(e){ console.warn('Audio unlock failed:',e.message) }
+}
+
+function mkAudio(fn){
+  try{
+    const ctx=getACtx();
+    if(ctx.state==='suspended'){
+      ctx.resume().then(()=>fn(ctx)).catch(e=>console.warn('Audio resume:',e));
+    } else {
+      fn(ctx);
+    }
+  }catch(e){ console.warn('Audio error:',e.message) } }
+
+// 🏁 LLEGADA — fanfarria ascendente (4 notas) · vol alto
 function playArrival(){
   mkAudio(ctx=>{
+    const master=ctx.createGain(); master.gain.value=0.6; master.connect(ctx.destination);
     [523,659,784,1047].forEach((f,i)=>{
       const o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
+      o.connect(g); g.connect(master);
       o.frequency.value=f; o.type='sine';
-      const t=ctx.currentTime+i*.18;
-      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.35,t+.05);
-      g.gain.setValueAtTime(.35,t+.12); g.gain.linearRampToValueAtTime(0,t+.4);
-      o.start(t); o.stop(t+.4);
+      const t=ctx.currentTime+i*.2;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.8,t+.04);
+      g.gain.setValueAtTime(0.8,t+.15); g.gain.linearRampToValueAtTime(0,t+.45);
+      o.start(t); o.stop(t+.5);
     });
   });
 }
 
-// ⚡ REGEN — tono ascendente suave (energía recuperándose)
+// ⚡ REGEN — sweep ascendente suave · vol moderado
 function playRegen(){
   mkAudio(ctx=>{
+    const master=ctx.createGain(); master.gain.value=0.4; master.connect(ctx.destination);
     const o=ctx.createOscillator(),g=ctx.createGain();
-    o.connect(g); g.connect(ctx.destination);
-    o.type='sine';
-    o.frequency.setValueAtTime(600,ctx.currentTime);
-    o.frequency.linearRampToValueAtTime(1100,ctx.currentTime+.4);
-    g.gain.setValueAtTime(0,ctx.currentTime);
-    g.gain.linearRampToValueAtTime(.12,ctx.currentTime+.1);
-    g.gain.linearRampToValueAtTime(0,ctx.currentTime+.5);
-    o.start(); o.stop(ctx.currentTime+.5);
+    o.connect(g); g.connect(master); o.type='sine';
+    const t=ctx.currentTime;
+    o.frequency.setValueAtTime(500,t);
+    o.frequency.linearRampToValueAtTime(1200,t+.5);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.9,t+.1);
+    g.gain.setValueAtTime(0.9,t+.35); g.gain.linearRampToValueAtTime(0,t+.6);
+    o.start(t); o.stop(t+.6);
   });
 }
 
-// ⚠️ SUBIDA PRONUNCIADA — 3 pulsos de advertencia (urgencia por pendiente)
+// ⚠️ SUBIDA — pulsos de alerta · vol alto para que se escuche manejando
 function playClimbAlert(slopePct){
   mkAudio(ctx=>{
-    const pulses=slopePct>15?3:2; // más pulsos a mayor pendiente
-    const freq=slopePct>15?880:660;
+    const master=ctx.createGain(); master.gain.value=0.55; master.connect(ctx.destination);
+    const pulses=slopePct>15?3:2;
+    const freq=slopePct>15?960:760;
     for(let i=0;i<pulses;i++){
       const o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type='square'; o.frequency.value=freq;
-      const t=ctx.currentTime+i*.28;
-      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.15,t+.03);
-      g.gain.setValueAtTime(.15,t+.14); g.gain.linearRampToValueAtTime(0,t+.22);
-      o.start(t); o.stop(t+.22);
+      o.connect(g); g.connect(master);
+      o.type='sawtooth'; o.frequency.value=freq;
+      const t=ctx.currentTime+i*.32;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.9,t+.03);
+      g.gain.setValueAtTime(0.9,t+.15); g.gain.linearRampToValueAtTime(0,t+.26);
+      o.start(t); o.stop(t+.28);
     }
   });
 }
 
-// 🚀 INICIO DE NAVEGACIÓN — tono de confirmación
+// 🚀 INICIO — confirmación · 3 notas ascendentes
 function playStartNav(){
   mkAudio(ctx=>{
+    const master=ctx.createGain(); master.gain.value=0.45; master.connect(ctx.destination);
     [440,554,659].forEach((f,i)=>{
       const o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
+      o.connect(g); g.connect(master);
       o.type='sine'; o.frequency.value=f;
-      const t=ctx.currentTime+i*.12;
-      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(.2,t+.04);
-      g.gain.linearRampToValueAtTime(0,t+.25);
-      o.start(t); o.stop(t+.25);
+      const t=ctx.currentTime+i*.14;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.9,t+.04);
+      g.gain.setValueAtTime(0.9,t+.08); g.gain.linearRampToValueAtTime(0,t+.28);
+      o.start(t); o.stop(t+.3);
     });
   });
 }
